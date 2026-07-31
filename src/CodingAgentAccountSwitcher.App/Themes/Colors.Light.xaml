@@ -10,6 +10,14 @@
     <SolidColorBrush x:Key="Brush.Surface.GlassHover" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.Surface.Control" Color="#80FFFFFF" />
     <SolidColorBrush x:Key="Brush.Surface.ControlHover" Color="#F2FFFFFF" />
+    <SolidColorBrush x:Key="Brush.Toggle.TrackOff" Color="#FF9DA6B4" />
+    <SolidColorBrush x:Key="Brush.Toggle.TrackOffBorder" Color="#FF8791A1" />
+    <SolidColorBrush x:Key="Brush.Toggle.TrackOn" Color="#FF34B85A" />
+    <SolidColorBrush x:Key="Brush.Toggle.TrackOnBorder" Color="#FF2B9F4C" />
+    <SolidColorBrush x:Key="Brush.Toggle.Thumb" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Segmented.Track" Color="#FFE1E5EB" />
+    <SolidColorBrush x:Key="Brush.Segmented.TrackBorder" Color="#FFC4CBD6" />
+    <SolidColorBrush x:Key="Brush.Segmented.Hover" Color="#FFF0F2F6" />
     <SolidColorBrush x:Key="Brush.Border.Subtle" Color="#24334155" />
     <SolidColorBrush x:Key="Brush.Border.Strong" Color="#3A334155" />
     <SolidColorBrush x:Key="Brush.Divider" Color="#18334155" />

@@ -32,15 +32,18 @@
         <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
             <Setter Property="Width" Value="54" />
             <Setter Property="Height" Value="44" />
-            <Setter Property="Background" Value="{DynamicResource Brush.Surface.Control}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Subtle}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Toggle.TrackOff}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Toggle.TrackOffBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid Background="Transparent">
                             <Border x:Name="Track"
+                                    Width="50"
                                     Height="30"
                                     VerticalAlignment="Center"
                                     Background="{TemplateBinding Background}"
@@ -48,17 +51,18 @@
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="15">
                                 <Ellipse x:Name="Thumb"
-                                         Width="24"
-                                         Height="24"
-                                         Margin="2"
+                                         Width="22"
+                                         Height="22"
+                                         Margin="4"
                                          HorizontalAlignment="Left"
-                                         Fill="{DynamicResource Brush.Text.Inverse}" />
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource Brush.Toggle.Thumb}" />
                             </Border>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Accent}" />
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Toggle.TrackOn}" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.Toggle.TrackOnBorder}" />
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
@@ -299,8 +303,8 @@
                             </Grid.ColumnDefinitions>
                             <Border x:Name="ProviderSelector"
                                     Padding="4"
-                                    Background="{DynamicResource Brush.Surface.Control}"
-                                    BorderBrush="{DynamicResource Brush.Border.Subtle}"
+                                    Background="{DynamicResource Brush.Segmented.Track}"
+                                    BorderBrush="{DynamicResource Brush.Segmented.TrackBorder}"
                                     BorderThickness="1"
                                     CornerRadius="15">
                                 <StackPanel Orientation="Horizontal">

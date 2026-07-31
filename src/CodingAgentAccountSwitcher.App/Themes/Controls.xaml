@@ -166,28 +166,35 @@
     <Style x:Key="Style.SegmentedItem" TargetType="RadioButton">
         <Setter Property="Height" Value="40" />
         <Setter Property="Padding" Value="18,0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Secondary}" />
         <Setter Property="FontFamily" Value="{StaticResource Font.Family.Text}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Border x:Name="Segment"
                             Padding="{TemplateBinding Padding}"
                             Background="Transparent"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="11">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Segment" Property="Background" Value="{DynamicResource Brush.Surface.ControlHover}" />
+                            <Setter TargetName="Segment" Property="Background" Value="{DynamicResource Brush.Segmented.Hover}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Segment" Property="Background" Value="{DynamicResource Brush.Surface.GlassStrong}" />
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
+                            <Setter TargetName="Segment" Property="Background" Value="{DynamicResource Brush.Accent}" />
+                            <Setter TargetName="Segment" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Inverse}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Segment" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing}" />
