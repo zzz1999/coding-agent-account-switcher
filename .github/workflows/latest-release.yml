@@ -81,29 +81,37 @@ jobs:
           ASSET_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip
           CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip.sha256
         run: |
-          $releaseLookup = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/latest" 2>&1
-          $releaseLookupExitCode = $LASTEXITCODE
-          if ($releaseLookupExitCode -eq 0) {
+          # Do not probe expected absence through a failing API request. Newer
+          # PowerShell runners may promote native stderr to a terminating error.
+          $releaseListJson = gh release list --limit 100 --json tagName
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to list existing releases.'
+          }
+
+          $hasLatestRelease = @(
+            $releaseListJson |
+              ConvertFrom-Json |
+              Where-Object { $_.tagName -eq 'latest' }
+          ).Count -gt 0
+
+          if ($hasLatestRelease) {
             gh release delete latest --cleanup-tag --yes
             if ($LASTEXITCODE -ne 0) {
               throw 'Failed to delete the previous latest release.'
             }
           }
-          elseif ($releaseLookup -match 'HTTP 404') {
-            $tagLookup = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/latest" 2>&1
-            $tagLookupExitCode = $LASTEXITCODE
-            if ($tagLookupExitCode -eq 0) {
+          else {
+            $latestTagReference = git ls-remote --tags origin refs/tags/latest
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to check for an orphan latest tag.'
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace(($latestTagReference -join "`n"))) {
               git push origin --delete latest
               if ($LASTEXITCODE -ne 0) {
                 throw 'Failed to delete the orphan latest tag.'
               }
             }
-            elseif ($tagLookup -notmatch 'HTTP 404') {
-              throw "Failed to check the latest tag: $tagLookup"
-            }
-          }
-          else {
-            throw "Failed to check the latest release: $releaseLookup"
           }
 
           gh release create latest "$env:ASSET_PATH" "$env:CHECKSUM_PATH" `
