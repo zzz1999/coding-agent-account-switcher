@@ -1,12 +1,12 @@
 <Window x:Class="CodingAgentAccountSwitcher.App.MainWindow"
+        x:Name="RootWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CodingAgentAccountSwitcher.App"
         mc:Ignorable="d"
-        Title="Coding Agent Account Switcher"
-        Language="en-US"
+        Title="{DynamicResource L.App.Title}"
         Width="920"
         Height="700"
         MinWidth="780"
@@ -29,6 +29,51 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="54" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface.Control}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Subtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Background="Transparent">
+                            <Border x:Name="Track"
+                                    Height="30"
+                                    VerticalAlignment="Center"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="15">
+                                <Ellipse x:Name="Thumb"
+                                         Width="24"
+                                         Height="24"
+                                         Margin="2"
+                                         HorizontalAlignment="Left"
+                                         Fill="{DynamicResource Brush.Text.Inverse}" />
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing}" />
+                                <Setter TargetName="Track" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <DataTemplate x:Key="AccountCardTemplate" DataType="{x:Type local:AccountCardViewModel}">
             <Border Style="{StaticResource Style.AccountCard}">
                 <Grid>
@@ -82,7 +127,7 @@
                     <StackPanel Grid.Row="1"
                                 Margin="0,22,0,18">
                         <TextBlock Style="{StaticResource Style.Text.Caption}"
-                                   Text="ENCRYPTED LOCAL SNAPSHOT" />
+                                   Text="{DynamicResource L.Card.EncryptedSnapshot}" />
                         <TextBlock Margin="0,6,0,0"
                                    Style="{StaticResource Style.Text.Body}"
                                    Text="{Binding LastSavedText}" />
@@ -199,28 +244,34 @@
                                    VerticalAlignment="Center"
                                    FontSize="13"
                                    FontWeight="SemiBold"
-                                   Text="Coding Agent Account Switcher" />
+                                   Text="{DynamicResource L.App.Title}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1"
                                 Orientation="Horizontal"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
                         <Button x:Name="ThemeButton"
                                 Style="{StaticResource Style.Button.Icon}"
-                                AutomationProperties.Name="Switch color theme"
+                                AutomationProperties.Name="{DynamicResource L.Window.Theme}"
                                 Click="ThemeButton_Click"
                                 Content="☾"
-                                ToolTip="Switch color theme" />
+                                ToolTip="{DynamicResource L.Window.Theme}" />
+                        <Button x:Name="SettingsButton"
+                                Style="{StaticResource Style.Button.Icon}"
+                                AutomationProperties.Name="{DynamicResource L.Window.Settings}"
+                                Click="SettingsButton_Click"
+                                Content="⚙"
+                                ToolTip="{DynamicResource L.Window.Settings}" />
                         <Button Style="{StaticResource Style.Button.Icon}"
-                                AutomationProperties.Name="Minimize"
+                                AutomationProperties.Name="{DynamicResource L.Window.Minimize}"
                                 Click="MinimizeButton_Click"
                                 Content="—" />
                         <Button x:Name="MaximizeButton"
                                 Style="{StaticResource Style.Button.Icon}"
-                                AutomationProperties.Name="Maximize"
+                                AutomationProperties.Name="{DynamicResource L.Window.Maximize}"
                                 Click="MaximizeButton_Click"
                                 Content="□" />
                         <Button Style="{StaticResource Style.Button.Icon}"
-                                AutomationProperties.Name="Close"
+                                AutomationProperties.Name="{DynamicResource L.Window.Close}"
                                 Click="CloseButton_Click"
                                 Content="×" />
                     </StackPanel>
@@ -232,12 +283,12 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel MaxWidth="820">
                         <TextBlock Style="{StaticResource Style.Text.Display}"
-                                   Text="Switch accounts, keep your setup." />
+                                   Text="{DynamicResource L.Hero.Title}" />
                         <TextBlock MaxWidth="680"
                                    Margin="0,7,0,0"
                                    HorizontalAlignment="Left"
                                    Style="{StaticResource Style.Text.Body}"
-                                   Text="Choose a saved login snapshot. Settings, MCP servers, skills, plugins, and project history stay exactly where they are."
+                                   Text="{DynamicResource L.Hero.Description}"
                                    TextWrapping="Wrap" />
 
                         <Grid Margin="0,26,0,0">
@@ -258,20 +309,20 @@
                                                  IsChecked="True"
                                                  Style="{StaticResource Style.SegmentedItem}"
                                                  Checked="ProviderSegment_Checked"
-                                                 Content="Codex" />
+                                                 Content="{DynamicResource L.Provider.Codex}" />
                                     <RadioButton x:Name="ClaudeSegment"
                                                  GroupName="Provider"
                                                  Style="{StaticResource Style.SegmentedItem}"
                                                  Checked="ProviderSegment_Checked"
-                                                 Content="Claude Code" />
+                                                 Content="{DynamicResource L.Provider.ClaudeCode}" />
                                 </StackPanel>
                             </Border>
                             <Button x:Name="SaveCurrentLoginButton"
                                     Grid.Column="2"
                                     Style="{StaticResource Style.Button.Primary}"
-                                    AutomationProperties.Name="Save current login"
+                                    AutomationProperties.Name="{DynamicResource L.Action.SaveCurrentLogin}"
                                     Click="SaveCurrentLogin_Click"
-                                    Content="Save current login" />
+                                    Content="{DynamicResource L.Action.SaveCurrentLogin}" />
                         </Grid>
 
                         <Grid Margin="0,28,0,14">
@@ -282,13 +333,12 @@
                             <StackPanel>
                                 <TextBlock x:Name="ProviderTitle"
                                            Style="{StaticResource Style.Text.Title}"
-                                           Text="Codex accounts" />
+                                           Text="{DynamicResource L.Provider.Codex}" />
                                 <TextBlock x:Name="ProviderDescription"
                                            Margin="0,5,0,0"
                                            Style="{StaticResource Style.Text.Caption}"
                                            TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
-                                           Text="Authentication file: %USERPROFILE%\.codex\auth.json" />
+                                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             </StackPanel>
                             <Border Grid.Column="1"
                                     Height="28"
@@ -306,7 +356,7 @@
                                                FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource Brush.Accent}"
-                                               Text="LOCAL ONLY" />
+                                               Text="{DynamicResource L.Badge.LocalOnly}" />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -334,14 +384,14 @@
                                     <TextBlock x:Name="EmptyStateTitle"
                                                HorizontalAlignment="Center"
                                                Style="{StaticResource Style.Text.Title}"
-                                               Text="No saved logins yet" />
+                                               Text="{DynamicResource L.Empty.NoLogin.Title}" />
                                     <TextBlock x:Name="EmptyStateMessage"
                                                MaxWidth="500"
                                                Margin="0,8,0,0"
                                                HorizontalAlignment="Center"
                                                TextAlignment="Center"
                                                Style="{StaticResource Style.Text.Body}"
-                                               Text="Sign in through the provider's official flow, close its apps, then save the current login. Repeat once for your second account."
+                                               Text="{DynamicResource L.Empty.NoLogin.Message}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
@@ -374,10 +424,10 @@
                                 <StackPanel Grid.Column="1">
                                     <TextBlock FontSize="13"
                                                FontWeight="SemiBold"
-                                               Text="Only authentication changes" />
+                                               Text="{DynamicResource L.Security.Title}" />
                                     <TextBlock Margin="0,4,0,0"
                                                Style="{StaticResource Style.Text.Caption}"
-                                               Text="Credential snapshots remain encrypted for the current Windows user. The app never previews token contents."
+                                               Text="{DynamicResource L.Security.Message}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </Grid>
@@ -404,12 +454,12 @@
                                        Style="{StaticResource Style.Text.Caption}"
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
-                                       Text="Ready. No authentication file is being changed." />
+                                       Text="{DynamicResource L.Status.Initial}" />
                         </StackPanel>
                         <TextBlock Grid.Column="1"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource Style.Text.Caption}"
-                                   Text="No telemetry" />
+                                   Text="{DynamicResource L.Status.NoTelemetry}" />
                     </Grid>
                 </Border>
             </Grid>
@@ -417,7 +467,7 @@
 
         <Grid x:Name="ProcessDialogOverlay"
               Panel.ZIndex="20"
-              AutomationProperties.Name="Process check required"
+              AutomationProperties.Name="{DynamicResource L.Process.Automation}"
               Background="{DynamicResource Brush.Scrim}"
               Visibility="Collapsed">
             <Border Style="{StaticResource Style.Dialog}"
@@ -440,11 +490,11 @@
                     <TextBlock x:Name="ProcessDialogTitle"
                                Margin="0,18,0,0"
                                Style="{StaticResource Style.Text.Title}"
-                               Text="Close running apps before switching" />
+                               Text="{DynamicResource L.Process.Close.Title}" />
                     <TextBlock x:Name="ProcessDialogMessage"
                                Margin="0,8,0,0"
                                Style="{StaticResource Style.Text.Body}"
-                               Text="The applications below may still be using the authentication file. Close them, then check again. No login file has been changed."
+                               Text="{DynamicResource L.Process.Close.Message}"
                                TextWrapping="Wrap" />
                     <ScrollViewer MaxHeight="220"
                                   Margin="0,18,0,10"
@@ -462,12 +512,12 @@
                         <Button Grid.Column="1"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelProcessDialog_Click"
-                                Content="Cancel" />
+                                Content="{DynamicResource L.Common.Cancel}" />
                         <Button x:Name="RecheckButton"
                                 Grid.Column="3"
                                 Style="{StaticResource Style.Button.Primary}"
                                 Click="RecheckProcesses_Click"
-                                Content="Check again" />
+                                Content="{DynamicResource L.Process.CheckAgain}" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -475,7 +525,7 @@
 
         <Grid x:Name="SaveProfileDialogOverlay"
               Panel.ZIndex="21"
-              AutomationProperties.Name="Save current login"
+              AutomationProperties.Name="{DynamicResource L.Save.Automation}"
               Background="{DynamicResource Brush.Scrim}"
               Visibility="Collapsed">
             <Border Style="{StaticResource Style.Dialog}"
@@ -497,18 +547,18 @@
                     </Border>
                     <TextBlock Margin="0,18,0,0"
                                Style="{StaticResource Style.Text.Title}"
-                               Text="Save the current login" />
+                               Text="{DynamicResource L.Save.Title}" />
                     <TextBlock Margin="0,8,0,0"
                                Style="{StaticResource Style.Text.Body}"
-                               Text="Choose a local label such as Personal or Work. The app stores the authentication file as an opaque, DPAPI-encrypted snapshot and never reads the account identity inside it."
+                               Text="{DynamicResource L.Save.Description}"
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,20,0,7"
                                Style="{StaticResource Style.Text.Caption}"
-                               Text="PROFILE LABEL" />
+                               Text="{DynamicResource L.Save.ProfileLabel}" />
                     <TextBox x:Name="ProfileNameTextBox"
                              MaxLength="80"
                              Style="{StaticResource Style.TextBox}"
-                             AutomationProperties.Name="Profile label"
+                             AutomationProperties.Name="{DynamicResource L.Save.ProfileLabelAutomation}"
                              TextChanged="ProfileNameTextBox_TextChanged"
                              KeyDown="ProfileNameTextBox_KeyDown" />
                     <TextBlock x:Name="ProfileNameValidationText"
@@ -516,7 +566,7 @@
                                AutomationProperties.LiveSetting="Assertive"
                                Foreground="{DynamicResource Brush.State.Danger}"
                                Style="{StaticResource Style.Text.Caption}"
-                               Text="Enter a label."
+                               Text="{DynamicResource L.Save.EnterLabel}"
                                Visibility="Collapsed" />
                     <Grid Margin="0,22,0,0">
                         <Grid.ColumnDefinitions>
@@ -528,12 +578,99 @@
                         <Button Grid.Column="1"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelSaveProfileDialog_Click"
-                                Content="Cancel" />
+                                Content="{DynamicResource L.Common.Cancel}" />
                         <Button x:Name="ConfirmSaveProfileButton"
                                 Grid.Column="3"
                                 Style="{StaticResource Style.Button.Primary}"
                                 Click="ConfirmSaveProfile_Click"
-                                Content="Save encrypted snapshot" />
+                                Content="{DynamicResource L.Save.Snapshot}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="SettingsDialogOverlay"
+              Panel.ZIndex="24"
+              AutomationProperties.Name="{DynamicResource L.Settings.Automation}"
+              Background="{DynamicResource Brush.Scrim}"
+              Visibility="Collapsed">
+            <Border Width="540"
+                    Style="{StaticResource Style.Dialog}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    KeyboardNavigation.TabNavigation="Cycle">
+                <StackPanel>
+                    <Border Width="48"
+                            Height="48"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource Brush.Accent.Muted}"
+                            CornerRadius="15">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="20"
+                                   Foreground="{DynamicResource Brush.Accent}"
+                                   Text="⚙" />
+                    </Border>
+                    <TextBlock Margin="0,18,0,0"
+                               Style="{StaticResource Style.Text.Title}"
+                               Text="{DynamicResource L.Settings.Title}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Style="{StaticResource Style.Text.Body}"
+                               Text="{DynamicResource L.Settings.Description}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,22,0,7"
+                               Style="{StaticResource Style.Text.Caption}"
+                               Text="{DynamicResource L.Settings.Language}" />
+                    <ComboBox x:Name="LanguageComboBox"
+                              MinHeight="44"
+                              Padding="12,6"
+                              DisplayMemberPath="NativeName"
+                              AutomationProperties.Name="{DynamicResource L.Settings.Language}"
+                              SelectionChanged="LanguageComboBox_SelectionChanged" />
+                    <TextBlock Margin="2,6,0,0"
+                               Style="{StaticResource Style.Text.Caption}"
+                               Text="{DynamicResource L.Settings.Language.Description}"
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,18,0">
+                            <TextBlock Style="{StaticResource Style.Text.Caption}"
+                                       Text="{DynamicResource L.Settings.Startup}" />
+                            <TextBlock Margin="0,7,0,0"
+                                       Style="{StaticResource Style.Text.Body}"
+                                       Text="{DynamicResource L.Settings.Startup.Description}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleButton x:Name="StartupToggle"
+                                      Grid.Column="1"
+                                      VerticalAlignment="Center"
+                                      Style="{StaticResource Style.SettingsToggle}"
+                                      AutomationProperties.Name="{DynamicResource L.Settings.Startup.Toggle}"
+                                      Click="StartupToggle_Click" />
+                    </Grid>
+
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="SettingsErrorText"
+                                   Margin="0,0,14,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Assertive"
+                                   Foreground="{DynamicResource Brush.State.Danger}"
+                                   Style="{StaticResource Style.Text.Caption}"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                        <Button Grid.Column="1"
+                                Style="{StaticResource Style.Button.Primary}"
+                                Click="CloseSettingsDialog_Click"
+                                Content="{DynamicResource L.Common.Close}" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -541,7 +678,7 @@
 
         <Grid x:Name="ChangedLoginDialogOverlay"
               Panel.ZIndex="22"
-              AutomationProperties.Name="Current login confirmation required"
+              AutomationProperties.Name="{DynamicResource L.Changed.Automation}"
               Background="{DynamicResource Brush.Scrim}"
               Visibility="Collapsed">
             <Border Style="{StaticResource Style.Dialog}"
@@ -564,7 +701,7 @@
                     <TextBlock x:Name="ChangedLoginDialogTitle"
                                Margin="0,18,0,0"
                                Style="{StaticResource Style.Text.Title}"
-                               Text="Confirm the current login" />
+                               Text="{DynamicResource L.Changed.Confirm.Title}" />
                     <TextBlock x:Name="ChangedLoginDialogMessage"
                                Margin="0,8,0,0"
                                Style="{StaticResource Style.Text.Body}"
@@ -575,7 +712,7 @@
                             CornerRadius="{StaticResource Radius.Small}">
                         <TextBlock x:Name="ChangedLoginSafetyText"
                                    Style="{StaticResource Style.Text.Caption}"
-                                   Text="No authentication file has been changed. Confirm only when the live login still belongs to the named profile."
+                                   Text="{DynamicResource L.Changed.Confirm.Safety}"
                                    TextWrapping="Wrap" />
                     </Border>
                     <Grid Margin="0,22,0,0">
@@ -590,17 +727,17 @@
                         <Button Grid.Column="1"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelChangedLoginDialog_Click"
-                                Content="Cancel" />
+                                Content="{DynamicResource L.Common.Cancel}" />
                         <Button Grid.Column="3"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="SaveChangedLoginAsNew_Click"
-                                Content="Save as new…" />
+                                Content="{DynamicResource L.Changed.SaveAsNew}" />
                         <Button x:Name="ConfirmChangedLoginButton"
                                 Grid.Column="5"
                                 Style="{StaticResource Style.Button.Primary}"
-                                AutomationProperties.Name="Confirm current login and switch"
+                                AutomationProperties.Name="{DynamicResource L.Changed.Confirm.Automation}"
                                 Click="ConfirmChangedLoginSwitch_Click"
-                                Content="Confirm &amp; switch" />
+                                Content="{DynamicResource L.Changed.Confirm.Action}" />
                     </Grid>
                 </StackPanel>
             </Border>

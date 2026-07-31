@@ -429,6 +429,8 @@ test-results/
 # Keep the WPF application project on case-insensitive Windows filesystems.
 !src/CodingAgentAccountSwitcher.App/
 !src/CodingAgentAccountSwitcher.App/**
+src/CodingAgentAccountSwitcher.App/[Bb]in/
+src/CodingAgentAccountSwitcher.App/[Oo]bj/
 
 # content below from: https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
 # General

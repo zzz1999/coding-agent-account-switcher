@@ -1,5 +1,7 @@
 # Coding Agent Account Switcher
 
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+
 An unofficial, local-first Windows account switcher for Codex and Claude Code.
 
 Coding Agent Account Switcher stores named, encrypted snapshots of the local
@@ -19,7 +21,11 @@ trademarks are bundled.
 ## Features
 
 - Windows-native WPF interface with an iOS 18-inspired glass-card design.
-- English-only interface and project documentation.
+- Built-in interface languages for English, Simplified Chinese, Traditional
+  Chinese, Spanish, French, German, Japanese, Korean, Brazilian Portuguese,
+  Russian, Arabic, and Hindi.
+- In-app settings for the display language and optional current-user startup
+  with Windows.
 - Named personal and work profiles for both Codex and Claude Code.
 - Process guard that blocks a switch until related applications are closed.
 - Credentials handled as opaque bytes: no token parsing, email extraction, or
@@ -86,6 +92,18 @@ pre-restore bytes until the operation commits or rolls back.
 The application never promises permanent login. Provider-side revocation,
 organization policy, SSO, MFA, or token expiry can still require a normal
 sign-in through the official client.
+
+## Settings
+
+Open **Settings** from the application window to choose a display language or
+control whether the app starts with Windows. The selected language is stored
+locally for the current Windows user and can be changed again at any time.
+
+**Start with Windows** adds an entry for this application under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. It applies only to the
+current Windows user and does not require administrator privileges. Turning the
+option off removes only the startup entry owned by Coding Agent Account
+Switcher; it does not alter other startup applications.
 
 ## Security model
 

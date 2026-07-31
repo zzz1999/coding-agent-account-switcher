@@ -16,6 +16,10 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 - Add tests for every credential transaction or recovery change.
 - Use random synthetic bytes and temporary directories in tests. Never read a
   real `%USERPROFILE%\.codex\auth.json` or `.claude\.credentials.json`.
+- Add every new fixed interface string to all supported localization catalogs.
+  Do not embed new user-facing prose directly in XAML or code-behind.
+- Keep translated README files structurally aligned with `README.md`, including
+  security limitations and the unofficial-project disclaimer.
 - Do not add telemetry, crash upload, token decoding, email extraction, or
   automatic process termination.
 - Preserve keyboard navigation, high-contrast behavior, and a minimum 44-pixel

@@ -26,6 +26,16 @@ core and a WPF presentation layer.
   transaction-only DPAPI-encrypted blob until commit or rollback completes.
 - **WPF application**: presents provider tabs, account cards, capture and switch
   actions, process-blocking dialogs, and status messages.
+- **Localization catalog**: supplies every fixed interface string for the
+  supported cultures and can refresh the active window without restarting the
+  application. Arabic also switches the application shell to right-to-left
+  flow.
+- **Application preferences**: stores only the selected UI language and other
+  non-secret application choices below `%LOCALAPPDATA%\CodingAgentAccountSwitcher`.
+  Preferences are separate from every path-scoped authentication vault.
+- **Startup registration**: manages one application-owned value in the current
+  user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. It never
+  writes a machine-wide startup entry and does not require elevation.
 
 ## Invariants
 
@@ -47,6 +57,12 @@ core and a WPF presentation layer.
    transaction-owned temporary-file and backup-file cleanup are complete. A
    restore recovery credential is retained until that journal deletion succeeds,
    then removed on a best-effort basis.
+10. Language and startup preferences never read or modify provider authentication
+    files, provider configuration, or encrypted profile blobs.
+11. Disabling startup removes only the exact registration owned by the current
+    executable. Ownership requires an unexpanded `REG_SZ` value whose command
+    matches byte-for-byte; an unexpected type, empty value, or command is
+    preserved rather than overwritten or deleted.
 
 ## Provider contracts
 

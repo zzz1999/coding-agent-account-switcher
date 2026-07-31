@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj" />
     <ProjectReference Include="..\..\src\CodingAgentAccountSwitcher.Core\CodingAgentAccountSwitcher.Core.csproj" />
   </ItemGroup>
 

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using CodingAgentAccountSwitcher.Core;
 
@@ -12,8 +13,11 @@ namespace CodingAgentAccountSwitcher.App;
 
 public partial class MainWindow : Window
 {
+    private readonly LocalizationService _localization;
+    private readonly ApplicationSettingsService _settingsService;
+    private readonly StartupRegistrationService _startupRegistration;
     private readonly IReadOnlyDictionary<AgentProvider, ProviderContext> _contexts;
-    private readonly Dictionary<AgentProvider, (string Message, StatusTone Tone)> _providerNotices = [];
+    private readonly Dictionary<AgentProvider, ProviderNotice> _providerNotices = [];
 
     private IReadOnlyList<AccountCardViewModel> _visibleAccounts = [];
     private AgentProvider _selectedProvider = AgentProvider.Codex;
@@ -21,9 +25,21 @@ public partial class MainWindow : Window
     private Guid? _confirmedReplacementProfileId;
     private bool _isBusy;
     private bool _isDarkTheme;
+    private bool _suppressSettingsEvents;
+    private bool _startupStateKnown = true;
+    private ApplicationSettings _settings;
 
-    public MainWindow()
+    public MainWindow(
+        LocalizationService localization,
+        ApplicationSettingsService settingsService,
+        StartupRegistrationService startupRegistration,
+        ApplicationSettings settings)
     {
+        _localization = localization;
+        _settingsService = settingsService;
+        _startupRegistration = startupRegistration;
+        _settings = settings;
+
         InitializeComponent();
 
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -42,6 +58,29 @@ public partial class MainWindow : Window
             adapter => adapter.Provider,
             adapter => CreateProviderContext(storageRoot, adapter));
 
+        _suppressSettingsEvents = true;
+        LanguageComboBox.ItemsSource = _localization.SupportedLanguages;
+        LanguageComboBox.SelectedItem = _localization.SupportedLanguages.First(option =>
+            string.Equals(option.Code, _settings.Language, StringComparison.OrdinalIgnoreCase));
+        try
+        {
+            var startupEnabled = _startupRegistration.IsEnabled();
+            _settings = _settings with { StartWithWindows = startupEnabled };
+            StartupToggle.IsChecked = startupEnabled;
+        }
+        catch (Exception exception)
+        {
+            _startupStateKnown = false;
+            StartupToggle.IsChecked = null;
+            StartupToggle.IsEnabled = false;
+            SettingsErrorText.Text = _localization.Get("Settings.StartupFailure", exception.Message);
+        }
+        finally
+        {
+            _suppressSettingsEvents = false;
+        }
+
+        ApplyLanguageLayout();
         ShowProvider(AgentProvider.Codex);
     }
 
@@ -60,8 +99,9 @@ public partial class MainWindow : Window
                 }
                 catch (Exception exception)
                 {
-                    _providerNotices[adapter.Provider] = (
-                        $"{adapter.DisplayName} recovery metadata is invalid: {exception.Message}",
+                    _providerNotices[adapter.Provider] = new ProviderNotice(
+                        "Recovery.MetadataInvalid",
+                        [ProviderDisplayName(adapter.Provider), exception.Message],
                         StatusTone.Error);
                     continue;
                 }
@@ -76,37 +116,46 @@ public partial class MainWindow : Window
                 {
                     case RecoveryStatus.RecoveredToSource:
                     case RecoveryStatus.CompletedTargetActivation:
-                        _providerNotices[adapter.Provider] = (
-                            $"Recovered an interrupted {adapter.DisplayName} switch.",
+                        _providerNotices[adapter.Provider] = new ProviderNotice(
+                            "Recovery.Recovered",
+                            [ProviderDisplayName(adapter.Provider)],
                             StatusTone.Success);
                         break;
                     case RecoveryStatus.BlockedByRunningProcesses:
-                        _providerNotices[adapter.Provider] = (
-                            $"Close {adapter.DisplayName}, then choose Save or Switch to retry interrupted-switch recovery.",
+                        _providerNotices[adapter.Provider] = new ProviderNotice(
+                            "Recovery.CloseThenRetry",
+                            [ProviderDisplayName(adapter.Provider)],
                             StatusTone.Warning);
                         break;
                     case RecoveryStatus.ProcessInspectionUnknown:
-                        _providerNotices[adapter.Provider] = (
-                            $"Windows could not safely check processes for {adapter.DisplayName} recovery. Try an operation again.",
+                        _providerNotices[adapter.Provider] = new ProviderNotice(
+                            "Recovery.ProcessUnknown",
+                            [ProviderDisplayName(adapter.Provider)],
                             StatusTone.Warning);
                         break;
                     case RecoveryStatus.LockUnavailable:
-                        _providerNotices[adapter.Provider] = (
-                            $"Another {adapter.DisplayName} account operation is in progress.",
+                        _providerNotices[adapter.Provider] = new ProviderNotice(
+                            "Recovery.InProgress",
+                            [ProviderDisplayName(adapter.Provider)],
                             StatusTone.Warning);
                         break;
                     case RecoveryStatus.ManualInterventionRequired:
                     case RecoveryStatus.Failed:
-                        _providerNotices[adapter.Provider] = (
-                            BuildFailureMessage($"{adapter.DisplayName} recovery requires attention", result.ErrorMessage),
-                            StatusTone.Error);
+                        _providerNotices[adapter.Provider] = new ProviderNotice(
+                            "Recovery.Attention",
+                            [ProviderDisplayName(adapter.Provider)],
+                            StatusTone.Error,
+                            result.ErrorMessage);
                         break;
                 }
             }
         }
         catch (Exception exception)
         {
-            _providerNotices[_selectedProvider] = ($"Startup recovery failed: {exception.Message}", StatusTone.Error);
+            _providerNotices[_selectedProvider] = new ProviderNotice(
+                "Recovery.StartupFailed",
+                [exception.Message],
+                StatusTone.Error);
         }
         finally
         {
@@ -130,28 +179,36 @@ public partial class MainWindow : Window
             : AgentProvider.Codex);
     }
 
-    private void ShowProvider(AgentProvider provider)
+    private bool ShowProvider(AgentProvider provider)
     {
         _selectedProvider = provider;
         var adapter = _contexts[provider].Adapter;
-        ProviderTitle.Text = $"{adapter.DisplayName} accounts";
-        ProviderDescription.Text = $"Authentication file: {FormatAuthenticationPath(adapter.AuthenticationFilePath)}";
+        ProviderTitle.Text = T("Provider.Accounts", ProviderDisplayName(provider));
+        ProviderDescription.Text = T(
+            "Provider.AuthenticationFile",
+            FormatAuthenticationPath(adapter.AuthenticationFilePath));
 
         if (ReloadProfiles(provider))
         {
             ApplyProviderStatus(provider);
+            return true;
         }
+
+        return false;
     }
 
     private void ApplyProviderStatus(AgentProvider provider)
     {
         if (_providerNotices.TryGetValue(provider, out var notice))
         {
-            SetStatus(notice.Message, notice.Tone);
+            var message = T(notice.ResourceKey, notice.Arguments);
+            SetStatus(
+                notice.ErrorDetail is null ? message : BuildFailureMessage(message, notice.ErrorDetail),
+                notice.Tone);
             return;
         }
 
-        SetStatus($"Ready to switch {_contexts[provider].Adapter.DisplayName} accounts.", StatusTone.Ready);
+        SetStatus(T("Status.ReadyProvider", ProviderDisplayName(provider)), StatusTone.Ready);
     }
 
     private bool ReloadProfiles(AgentProvider provider)
@@ -166,7 +223,8 @@ public partial class MainWindow : Window
                     profile.DisplayName,
                     profile.Provider,
                     profile.CapturedAtUtc,
-                    activeProfile?.ProfileId == profile.ProfileId))
+                    activeProfile?.ProfileId == profile.ProfileId,
+                    _localization))
                 .ToArray();
 
             AccountItems.ItemsSource = _visibleAccounts;
@@ -178,11 +236,11 @@ public partial class MainWindow : Window
                 var authenticationFileExists = System.IO.File.Exists(
                     _contexts[provider].Adapter.AuthenticationFilePath);
                 EmptyStateTitle.Text = authenticationFileExists
-                    ? "Login detected, no saved profiles"
-                    : "No login detected";
+                    ? T("Empty.LoginDetected.Title")
+                    : T("Empty.NoLogin.Title");
                 EmptyStateMessage.Text = authenticationFileExists
-                    ? "Close the provider, then save the current login. Sign in to your second account through the official flow and save that login too."
-                    : "Sign in through the provider's official flow first. Close its apps, then return here to save the current login.";
+                    ? T("Empty.LoginDetected.Message")
+                    : T("Empty.NoLogin.Message");
             }
 
             return true;
@@ -192,10 +250,9 @@ public partial class MainWindow : Window
             _visibleAccounts = [];
             AccountItems.ItemsSource = _visibleAccounts;
             EmptyStatePanel.Visibility = Visibility.Visible;
-            EmptyStateTitle.Text = "Saved profiles unavailable";
-            EmptyStateMessage.Text =
-                "The encrypted profile store could not be read. No authentication file was changed.";
-            SetStatus($"Saved profiles could not be loaded: {exception.Message}", StatusTone.Error);
+            EmptyStateTitle.Text = T("Empty.Unavailable.Title");
+            EmptyStateMessage.Text = T("Empty.Unavailable.Message");
+            SetStatus(T("Status.ProfilesLoadFailed", exception.Message), StatusTone.Error);
             return false;
         }
     }
@@ -217,16 +274,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        var personalLabel = T("Save.SuggestedPersonal");
+        var workLabel = T("Save.SuggestedWork");
         var suggestedName = _visibleAccounts.All(account =>
-            !string.Equals(account.Name, "Personal", StringComparison.OrdinalIgnoreCase))
-            ? "Personal"
+            !string.Equals(account.Name, personalLabel, StringComparison.CurrentCultureIgnoreCase))
+            ? personalLabel
             : _visibleAccounts.All(account =>
-                !string.Equals(account.Name, "Work", StringComparison.OrdinalIgnoreCase))
-                ? "Work"
+                !string.Equals(account.Name, workLabel, StringComparison.CurrentCultureIgnoreCase))
+                ? workLabel
                 : string.Empty;
 
         _confirmedReplacementProfileId = null;
-        ConfirmSaveProfileButton.Content = "Save encrypted snapshot";
+        ConfirmSaveProfileButton.Content = T("Save.Snapshot");
         ProfileNameTextBox.Text = suggestedName;
         ProfileNameValidationText.Visibility = Visibility.Collapsed;
         SaveProfileDialogOverlay.Visibility = Visibility.Visible;
@@ -255,10 +314,9 @@ public partial class MainWindow : Window
         if (existingProfile is not null && _confirmedReplacementProfileId != existingProfile.ProfileId)
         {
             _confirmedReplacementProfileId = existingProfile.ProfileId;
-            ProfileNameValidationText.Text =
-                $"A profile named {existingProfile.Name} already exists. Click Replace saved snapshot to confirm.";
+            ProfileNameValidationText.Text = T("Save.ReplaceConfirm", existingProfile.Name);
             ProfileNameValidationText.Visibility = Visibility.Visible;
-            ConfirmSaveProfileButton.Content = "Replace saved snapshot";
+            ConfirmSaveProfileButton.Content = T("Save.Replace");
             return;
         }
 
@@ -274,11 +332,11 @@ public partial class MainWindow : Window
         string? validationMessage = null;
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            validationMessage = "Enter a profile label.";
+            validationMessage = T("Save.EnterLabel");
         }
         else if (displayName.Length > 80 || displayName.Any(char.IsControl))
         {
-            validationMessage = "Use 80 characters or fewer and no control characters.";
+            validationMessage = T("Save.InvalidLabel");
         }
         if (validationMessage is null)
         {
@@ -314,7 +372,7 @@ public partial class MainWindow : Window
         }
 
         _confirmedReplacementProfileId = null;
-        ConfirmSaveProfileButton.Content = "Save encrypted snapshot";
+        ConfirmSaveProfileButton.Content = T("Save.Snapshot");
         ProfileNameValidationText.Visibility = Visibility.Collapsed;
     }
 
@@ -324,7 +382,7 @@ public partial class MainWindow : Window
         ProfileNameValidationText.Visibility = Visibility.Collapsed;
         ProfileNameTextBox.Clear();
         _confirmedReplacementProfileId = null;
-        ConfirmSaveProfileButton.Content = "Save encrypted snapshot";
+        ConfirmSaveProfileButton.Content = T("Save.Snapshot");
     }
 
     private async Task AttemptCaptureAsync(
@@ -339,7 +397,7 @@ public partial class MainWindow : Window
 
         SetBusy(true);
         SetStatus(
-            $"Checking processes and saving securely. Keep {ProviderDisplayName(provider)} closed until this finishes…",
+            T("Status.CheckingSave", ProviderDisplayName(provider)),
             StatusTone.Ready);
 
         CaptureProfileResult result;
@@ -355,7 +413,7 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
             CloseProcessDialog();
-            SetStatus($"The login could not be saved: {exception.Message}", StatusTone.Error);
+            SetStatus(T("Status.SaveException", exception.Message), StatusTone.Error);
             return;
         }
 
@@ -376,8 +434,14 @@ public partial class MainWindow : Window
                 var captureProfilesLoaded = _selectedProvider != provider || ReloadProfiles(provider);
                 if (captureProfilesLoaded)
                 {
-                    var captureVerb = profileToReplace.HasValue ? "Updated" : "Saved";
-                    SetStatus($"{captureVerb} {displayName} as an encrypted {ProviderDisplayName(provider)} profile.",
+                    var captureVerb = T(profileToReplace.HasValue
+                        ? "Status.UpdatedVerb"
+                        : "Status.SavedVerb");
+                    SetStatus(T(
+                            "Status.ProfileCaptured",
+                            captureVerb,
+                            displayName,
+                            ProviderDisplayName(provider)),
                         StatusTone.Success);
                 }
                 break;
@@ -389,33 +453,37 @@ public partial class MainWindow : Window
             case AccountOperationStatus.AuthenticationFileMissing:
                 CloseProcessDialog();
                 SetStatus(
-                    $"No {ProviderDisplayName(provider)} login file was found. Sign in normally, close the app, then try again.",
+                    T("Status.LoginMissing", ProviderDisplayName(provider)),
                     StatusTone.Error);
                 break;
             case AccountOperationStatus.AuthenticationFileEmpty:
                 CloseProcessDialog();
-                SetStatus("The authentication file is empty or invalid, so nothing was saved.", StatusTone.Error);
+                SetStatus(T("Status.AuthenticationEmpty"), StatusTone.Error);
                 break;
             case AccountOperationStatus.ProfileNotFound:
                 CloseProcessDialog();
                 ReloadProfiles(provider);
-                SetStatus("The profile to replace no longer exists. The list has been refreshed.", StatusTone.Error);
+                SetStatus(T("Status.ProfileReplaceMissing"), StatusTone.Error);
                 break;
             case AccountOperationStatus.LockUnavailable:
                 CloseProcessDialog();
-                SetStatus("Another account operation is in progress. Try again in a moment.", StatusTone.Warning);
+                SetStatus(T("Status.OperationInProgress"), StatusTone.Warning);
                 break;
             case AccountOperationStatus.RecoveryRequired:
                 CloseProcessDialog();
                 var captureRecoveryMessage = BuildFailureMessage(
-                    "An interrupted switch requires recovery before a login can be saved",
+                    T("Status.CaptureRecovery"),
                     result.ErrorMessage);
-                _providerNotices[provider] = (captureRecoveryMessage, StatusTone.Error);
+                _providerNotices[provider] = new ProviderNotice(
+                    "Status.CaptureRecovery",
+                    [],
+                    StatusTone.Error,
+                    result.ErrorMessage);
                 SetStatus(captureRecoveryMessage, StatusTone.Error);
                 break;
             default:
                 CloseProcessDialog();
-                SetStatus(BuildFailureMessage("The login could not be saved", result.ErrorMessage), StatusTone.Error);
+                SetStatus(BuildFailureMessage(T("Status.SaveFailed"), result.ErrorMessage), StatusTone.Error);
                 break;
         }
     }
@@ -433,7 +501,7 @@ public partial class MainWindow : Window
 
         SetBusy(true);
         SetStatus(
-            $"Checking processes and switching securely. Keep {ProviderDisplayName(provider)} closed until this finishes…",
+            T("Status.CheckingSwitch", ProviderDisplayName(provider)),
             StatusTone.Ready);
 
         SwitchProfileResult result;
@@ -449,7 +517,7 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
             CloseProcessDialog();
-            SetStatus($"The account could not be switched: {exception.Message}", StatusTone.Error);
+            SetStatus(T("Status.SwitchException", exception.Message), StatusTone.Error);
             return;
         }
 
@@ -471,13 +539,13 @@ public partial class MainWindow : Window
                 var switchProfilesLoaded = _selectedProvider != provider || ReloadProfiles(provider);
                 if (switchProfilesLoaded)
                 {
-                    SetStatus($"{displayName} is now active for {ProviderDisplayName(provider)}.",
+                    SetStatus(T("Status.NowActive", displayName, ProviderDisplayName(provider)),
                         StatusTone.Success);
                 }
                 break;
             case AccountOperationStatus.AlreadyActive:
                 CloseProcessDialog();
-                SetStatus($"{displayName} is already active.", StatusTone.Ready);
+                SetStatus(T("Status.AlreadyActive", displayName), StatusTone.Ready);
                 break;
             case AccountOperationStatus.BlockedByRunningProcesses:
             case AccountOperationStatus.ProcessInspectionUnknown:
@@ -508,31 +576,35 @@ public partial class MainWindow : Window
                 break;
             case AccountOperationStatus.AuthenticationFileMissing:
                 CloseProcessDialog();
-                SetStatus("The current authentication file is missing. Sign in and save the current login first.",
+                SetStatus(T("Status.CurrentAuthMissing"),
                     StatusTone.Error);
                 break;
             case AccountOperationStatus.ProfileNotFound:
                 CloseProcessDialog();
                 ReloadProfiles(provider);
-                SetStatus("That encrypted profile no longer exists. The list has been refreshed.", StatusTone.Error);
+                SetStatus(T("Status.ProfileMissing"), StatusTone.Error);
                 break;
             case AccountOperationStatus.LockUnavailable:
                 CloseProcessDialog();
-                SetStatus("Another account operation is in progress. Try again in a moment.", StatusTone.Warning);
+                SetStatus(T("Status.OperationInProgress"), StatusTone.Warning);
                 break;
             case AccountOperationStatus.RecoveryRequired:
                 CloseProcessDialog();
                 var switchRecoveryMessage = BuildFailureMessage(
-                    "The switch requires recovery or a current-login capture",
+                    T("Status.SwitchRecovery"),
                     result.ErrorMessage);
-                _providerNotices[provider] = (switchRecoveryMessage, StatusTone.Error);
+                _providerNotices[provider] = new ProviderNotice(
+                    "Status.SwitchRecovery",
+                    [],
+                    StatusTone.Error,
+                    result.ErrorMessage);
                 SetStatus(switchRecoveryMessage, StatusTone.Error);
                 break;
             default:
                 CloseProcessDialog();
                 var prefix = result.RolledBack
-                    ? "The switch failed and the previous login was restored"
-                    : "The account could not be switched";
+                    ? T("Status.SwitchFailedRestored")
+                    : T("Status.SwitchFailed");
                 SetStatus(BuildFailureMessage(prefix, result.ErrorMessage), StatusTone.Error);
                 break;
         }
@@ -567,30 +639,26 @@ public partial class MainWindow : Window
     {
         var sourceName = _visibleAccounts
             .FirstOrDefault(account => account.ProfileId == sourceProfileId)
-            ?.Name ?? "the last selected profile";
+            ?.Name ?? T("Changed.LastSelected");
 
         if (isSavedSnapshotRestore)
         {
-            ChangedLoginDialogTitle.Text = "Restore the saved snapshot?";
-            ChangedLoginDialogMessage.Text =
-                $"The live authentication file no longer matches {sourceName}. Restoring the saved snapshot will replace the current unsaved login. Save the current login as a new profile first if you may need it.";
-            ChangedLoginSafetyText.Text =
-                "No authentication file has been changed. Restore only when you intentionally want to replace the exact live login shown by this warning.";
-            ConfirmChangedLoginButton.Content = "Restore snapshot";
-            AutomationProperties.SetName(ConfirmChangedLoginButton, "Restore saved authentication snapshot");
-            SetStatus("Confirmation is required before the saved snapshot can replace the live login.",
+            ChangedLoginDialogTitle.Text = T("Changed.Restore.Title");
+            ChangedLoginDialogMessage.Text = T("Changed.Restore.Message", sourceName);
+            ChangedLoginSafetyText.Text = T("Changed.Restore.Safety");
+            ConfirmChangedLoginButton.Content = T("Changed.Restore.Action");
+            AutomationProperties.SetName(ConfirmChangedLoginButton, T("Changed.Restore.Automation"));
+            SetStatus(T("Status.ConfirmRestore"),
                 StatusTone.Warning);
         }
         else
         {
-            ChangedLoginDialogTitle.Text = "Confirm the current login";
-            ChangedLoginDialogMessage.Text =
-                $"The live authentication file no longer matches the encrypted snapshot for {sourceName}. This may be a normal token refresh or a different account. Confirm only if the current login still belongs to {sourceName}; otherwise save it as a new profile first.";
-            ChangedLoginSafetyText.Text =
-                "No authentication file has been changed. Confirm only when the live login still belongs to the named profile.";
-            ConfirmChangedLoginButton.Content = "Confirm & switch";
-            AutomationProperties.SetName(ConfirmChangedLoginButton, "Confirm current login and switch");
-            SetStatus("Confirmation is required before the last selected profile can be updated.",
+            ChangedLoginDialogTitle.Text = T("Changed.Confirm.Title");
+            ChangedLoginDialogMessage.Text = T("Changed.Confirm.Message", sourceName);
+            ChangedLoginSafetyText.Text = T("Changed.Confirm.Safety");
+            ConfirmChangedLoginButton.Content = T("Changed.Confirm.Action");
+            AutomationProperties.SetName(ConfirmChangedLoginButton, T("Changed.Confirm.Automation"));
+            SetStatus(T("Status.ConfirmCurrent"),
                 StatusTone.Warning);
         }
 
@@ -623,7 +691,7 @@ public partial class MainWindow : Window
     private void CancelChangedLoginDialog_Click(object sender, RoutedEventArgs e)
     {
         CloseChangedLoginDialog();
-        SetStatus("Switch cancelled. No authentication file was changed.", StatusTone.Ready);
+        SetStatus(T("Status.SwitchCancelled"), StatusTone.Ready);
     }
 
     private void CloseChangedLoginDialog(bool clearPendingOperation = true)
@@ -640,7 +708,7 @@ public partial class MainWindow : Window
     private void CancelProcessDialog_Click(object sender, RoutedEventArgs e)
     {
         CloseProcessDialog();
-        SetStatus("Operation cancelled. No authentication file was changed.", StatusTone.Ready);
+        SetStatus(T("Status.OperationCancelled"), StatusTone.Ready);
     }
 
     private void ShowProcessDialog(ProcessInspectionResult inspection)
@@ -648,30 +716,28 @@ public partial class MainWindow : Window
         var rows = inspection.Processes
             .Select(process => new RunningProcessViewModel(
                 process.ProcessName,
-                $"{process.ProcessName}.exe · PID {process.ProcessId}",
-                "RUNNING"))
+                T("Process.Detail", process.ProcessName, process.ProcessId),
+                T("Process.Running")))
             .Concat(inspection.Issues.Select(issue => new RunningProcessViewModel(
-                issue.ProcessName == "*" ? "Process inspection" : issue.ProcessName,
-                "Windows could not verify whether this process is closed.",
-                "CHECK FAILED")))
+                issue.ProcessName == "*" ? T("Process.Inspection") : issue.ProcessName,
+                T("Process.Unverified"),
+                T("Process.CheckFailed"))))
             .ToArray();
 
         if (inspection.Status == ProcessInspectionStatus.Unknown)
         {
-            ProcessDialogTitle.Text = "Process check could not complete";
-            ProcessDialogMessage.Text =
-                "The app could not safely confirm that every related process is closed. Close the provider and its extensions, then check again. No login file has been changed.";
+            ProcessDialogTitle.Text = T("Process.Unknown.Title");
+            ProcessDialogMessage.Text = T("Process.Unknown.Message");
         }
         else
         {
-            ProcessDialogTitle.Text = "Close running apps before continuing";
-            ProcessDialogMessage.Text =
-                "The applications below may still be using the authentication file. Close them, then check again. No login file has been changed.";
+            ProcessDialogTitle.Text = T("Process.Close.Title");
+            ProcessDialogMessage.Text = T("Process.Close.Message");
         }
 
         BlockingProcessItems.ItemsSource = rows;
         ProcessDialogOverlay.Visibility = Visibility.Visible;
-        SetStatus("Operation blocked until the process check is clear.", StatusTone.Warning);
+        SetStatus(T("Status.ProcessBlocked"), StatusTone.Warning);
         Dispatcher.BeginInvoke(() => Keyboard.Focus(RecheckButton));
     }
 
@@ -687,10 +753,13 @@ public partial class MainWindow : Window
         _isBusy = isBusy;
         ProviderSelector.IsEnabled = !isBusy;
         SaveCurrentLoginButton.IsEnabled = !isBusy;
+        SettingsButton.IsEnabled = !isBusy;
         AccountItems.IsEnabled = !isBusy;
         RecheckButton.IsEnabled = !isBusy;
         ConfirmSaveProfileButton.IsEnabled = !isBusy;
         ConfirmChangedLoginButton.IsEnabled = !isBusy;
+        LanguageComboBox.IsEnabled = !isBusy;
+        StartupToggle.IsEnabled = !isBusy && _startupStateKnown;
     }
 
     private void SetStatus(string message, StatusTone tone)
@@ -723,7 +792,174 @@ public partial class MainWindow : Window
         };
 
         ThemeButton.Content = _isDarkTheme ? "☼" : "☾";
-        SetStatus(_isDarkTheme ? "Dark appearance enabled." : "Light appearance enabled.", StatusTone.Ready);
+        SetStatus(T(_isDarkTheme ? "Status.DarkTheme" : "Status.LightTheme"), StatusTone.Ready);
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _suppressSettingsEvents = true;
+        LanguageComboBox.SelectedItem = _localization.SupportedLanguages.First(option =>
+            string.Equals(option.Code, _settings.Language, StringComparison.OrdinalIgnoreCase));
+        try
+        {
+            var enabled = _startupRegistration.IsEnabled();
+            _startupStateKnown = true;
+            _settings = _settings with { StartWithWindows = enabled };
+            StartupToggle.IsChecked = enabled;
+            StartupToggle.IsEnabled = true;
+            SettingsErrorText.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception exception)
+        {
+            _startupStateKnown = false;
+            StartupToggle.IsChecked = null;
+            StartupToggle.IsEnabled = false;
+            ShowSettingsError(T("Settings.StartupFailure", exception.Message));
+        }
+        finally
+        {
+            _suppressSettingsEvents = false;
+        }
+
+        SettingsDialogOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(() => Keyboard.Focus(LanguageComboBox));
+    }
+
+    private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressSettingsEvents ||
+            LanguageComboBox.SelectedItem is not LanguageOption selectedLanguage ||
+            string.Equals(selectedLanguage.Code, _settings.Language, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var previousSettings = _settings;
+        var proposedSettings = previousSettings with { Language = selectedLanguage.Code };
+        try
+        {
+            _localization.Apply(selectedLanguage.Code);
+            ApplyLanguageLayout();
+            _settingsService.Save(proposedSettings);
+            _settings = proposedSettings;
+            SettingsErrorText.Visibility = Visibility.Collapsed;
+            var providerLoaded = ShowProvider(_selectedProvider);
+            if (providerLoaded && !_providerNotices.ContainsKey(_selectedProvider))
+            {
+                SetStatus(T("Settings.Saved"), StatusTone.Success);
+            }
+        }
+        catch (Exception exception)
+        {
+            _localization.Apply(previousSettings.Language);
+            ApplyLanguageLayout();
+            _suppressSettingsEvents = true;
+            LanguageComboBox.SelectedItem = _localization.SupportedLanguages.First(option =>
+                string.Equals(option.Code, previousSettings.Language, StringComparison.OrdinalIgnoreCase));
+            _suppressSettingsEvents = false;
+            ShowSettingsError(T("Settings.LanguageFailure", exception.Message));
+        }
+    }
+
+    private void StartupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_suppressSettingsEvents)
+        {
+            return;
+        }
+
+        var previousSettings = _settings;
+        var requestedValue = StartupToggle.IsChecked == true;
+        if (requestedValue == previousSettings.StartWithWindows)
+        {
+            return;
+        }
+
+        try
+        {
+            _startupRegistration.SetEnabled(requestedValue);
+            var proposedSettings = previousSettings with { StartWithWindows = requestedValue };
+            _settingsService.Save(proposedSettings);
+
+            _settings = proposedSettings;
+            _startupStateKnown = true;
+            SettingsErrorText.Visibility = Visibility.Collapsed;
+            var providerLoaded = ShowProvider(_selectedProvider);
+            if (providerLoaded && !_providerNotices.ContainsKey(_selectedProvider))
+            {
+                SetStatus(T("Settings.Saved"), StatusTone.Success);
+            }
+        }
+        catch (Exception exception)
+        {
+            Exception displayedException = exception;
+            bool? actualState = null;
+            try
+            {
+                _startupRegistration.SetEnabled(previousSettings.StartWithWindows);
+                actualState = previousSettings.StartWithWindows;
+            }
+            catch (Exception rollbackException)
+            {
+                displayedException = new AggregateException(exception, rollbackException);
+                try
+                {
+                    actualState = _startupRegistration.IsEnabled();
+                }
+                catch (Exception inspectionException)
+                {
+                    displayedException = new AggregateException(
+                        exception,
+                        rollbackException,
+                        inspectionException);
+                }
+            }
+
+            _suppressSettingsEvents = true;
+            if (actualState.HasValue)
+            {
+                _startupStateKnown = true;
+                _settings = previousSettings with { StartWithWindows = actualState.Value };
+                StartupToggle.IsChecked = actualState.Value;
+                StartupToggle.IsEnabled = true;
+            }
+            else
+            {
+                _startupStateKnown = false;
+                StartupToggle.IsChecked = null;
+                StartupToggle.IsEnabled = false;
+            }
+
+            _suppressSettingsEvents = false;
+            ShowSettingsError(T("Settings.StartupFailure", displayedException.Message));
+        }
+    }
+
+    private void CloseSettingsDialog_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsDialogOverlay.Visibility = Visibility.Collapsed;
+        SettingsErrorText.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowSettingsError(string message)
+    {
+        SettingsErrorText.Text = message;
+        SettingsErrorText.Visibility = Visibility.Visible;
+        SetStatus(message, StatusTone.Error);
+    }
+
+    private void ApplyLanguageLayout()
+    {
+        FlowDirection = _localization.FlowDirection;
+        Language = XmlLanguage.GetLanguage(_localization.CurrentLanguage);
+        AutomationProperties.SetName(
+            MaximizeButton,
+            T(WindowState == WindowState.Maximized ? "Window.Restore" : "Window.Maximize"));
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -753,7 +989,7 @@ public partial class MainWindow : Window
     {
         if (_isBusy)
         {
-            SetStatus("Wait for the credential operation to finish before closing the app.", StatusTone.Warning);
+            SetStatus(T("Status.WaitBeforeClose"), StatusTone.Warning);
             return;
         }
 
@@ -768,7 +1004,7 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
-        SetStatus("Wait for the credential operation to finish before closing the app.", StatusTone.Warning);
+        SetStatus(T("Status.WaitBeforeClose"), StatusTone.Warning);
     }
 
     private void ToggleMaximize()
@@ -790,7 +1026,7 @@ public partial class MainWindow : Window
             MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
             AutomationProperties.SetName(
                 MaximizeButton,
-                WindowState == WindowState.Maximized ? "Restore" : "Maximize");
+                T(WindowState == WindowState.Maximized ? "Window.Restore" : "Window.Maximize"));
         }
     }
 
@@ -801,7 +1037,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (ChangedLoginDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
+        if (SettingsDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
+        {
+            CloseSettingsDialog_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (ChangedLoginDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
         {
             CancelChangedLoginDialog_Click(this, new RoutedEventArgs());
             e.Handled = true;
@@ -818,8 +1059,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string ProviderDisplayName(AgentProvider provider) =>
-        provider == AgentProvider.Codex ? "Codex" : "Claude Code";
+    private string ProviderDisplayName(AgentProvider provider) =>
+        T(provider == AgentProvider.Codex ? "Provider.Codex" : "Provider.ClaudeCode");
 
     private static ProviderContext CreateProviderContext(
         string storageRoot,
@@ -844,8 +1085,12 @@ public partial class MainWindow : Window
             : path;
     }
 
-    private static string BuildFailureMessage(string prefix, string? errorMessage) =>
-        string.IsNullOrWhiteSpace(errorMessage) ? $"{prefix}." : $"{prefix}: {errorMessage}";
+    private string BuildFailureMessage(string prefix, string? errorMessage) =>
+        string.IsNullOrWhiteSpace(errorMessage)
+            ? T("Failure.WithoutDetail", prefix)
+            : T("Failure.WithDetail", prefix, errorMessage);
+
+    private string T(string key, params object?[] arguments) => _localization.Get(key, arguments);
 
     private enum StatusTone
     {
@@ -886,10 +1131,18 @@ public partial class MainWindow : Window
         IAuthenticationAdapter Adapter,
         AuthenticationProfileVault Vault,
         AccountSwitchService SwitchService);
+
+    private sealed record ProviderNotice(
+        string ResourceKey,
+        object?[] Arguments,
+        StatusTone Tone,
+        string? ErrorDetail = null);
 }
 
 public sealed class AccountCardViewModel : INotifyPropertyChanged
 {
+    private readonly DateTimeOffset _capturedAtUtc;
+    private readonly LocalizationService _localization;
     private bool _isActive;
 
     public AccountCardViewModel(
@@ -897,12 +1150,14 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
         string name,
         AgentProvider provider,
         DateTimeOffset capturedAtUtc,
-        bool isActive)
+        bool isActive,
+        LocalizationService localization)
     {
         ProfileId = profileId;
         Name = name;
         Provider = provider;
-        LastSavedText = $"Saved {capturedAtUtc.ToLocalTime().ToString("MMM d, yyyy, h:mm tt", CultureInfo.InvariantCulture)}";
+        _capturedAtUtc = capturedAtUtc;
+        _localization = localization;
         _isActive = isActive;
     }
 
@@ -914,9 +1169,12 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
 
     public string Initials => CreateInitials(Name);
 
-    public string Subtitle => Provider == AgentProvider.Codex ? "Codex profile" : "Claude Code profile";
+    public string Subtitle => _localization.Get(
+        Provider == AgentProvider.Codex ? "Card.CodexProfile" : "Card.ClaudeProfile");
 
-    public string LastSavedText { get; }
+    public string LastSavedText => _localization.Get(
+        "Card.SavedAt",
+        _capturedAtUtc.ToLocalTime().ToString("g", _localization.Culture));
 
     public AgentProvider Provider { get; }
 
@@ -938,13 +1196,13 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
         }
     }
 
-    public string StatusText => IsActive ? "LAST SELECTED" : "SAVED";
+    public string StatusText => _localization.Get(IsActive ? "Card.LastSelected" : "Card.Saved");
 
-    public string ActionLabel => IsActive ? "Restore snapshot" : "Switch";
+    public string ActionLabel => _localization.Get(IsActive ? "Card.Restore" : "Card.Switch");
 
     public string AutomationActionLabel => IsActive
-        ? $"Restore the saved snapshot for {Name}"
-        : $"Switch to {Name}";
+        ? _localization.Get("Card.RestoreAutomation", Name)
+        : _localization.Get("Card.SwitchAutomation", Name);
 
     private static string CreateInitials(string value)
     {
