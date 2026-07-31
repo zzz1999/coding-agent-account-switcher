@@ -11,6 +11,16 @@ Coding Agent Account Switcher は、Codex と Claude Code が使用するロー�
 
 「iOS 18 に着想を得た」という表現は、一般的なビジュアルの方向性だけを示します。Apple は本プロジェクトと無関係であり、Apple のフォント、シンボル、アートワーク、商標は同梱していません。
 
+## ダウンロード
+
+現在のビルドは [latest リリース](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)からダウンロードできます。
+
+- **推奨インストーラー:** `coding-agent-account-switcher-setup-win-x64.exe` は管理者権限なしで現在の Windows ユーザー向けにインストールし、スタートメニューとアンインストールの項目を作成します。
+- **ポータブル版:** `coding-agent-account-switcher-win-x64.zip` は展開するだけで、インストールせずに実行できます。
+- リリースには、各パッケージに対応する SHA-256 チェックサムファイルが含まれます。
+
+インストーラーは **Windows と同時に起動**を自動的に有効化せず、Codex または Claude Code の認証ファイルや設定ファイルには触れません。アンインストールしても暗号化されたアカウントスナップショットとアプリ設定は保持され、再インストール後も使用できます。インストーラーとポータブル版の実行ファイルは現在未署名のため、Windows SmartScreen が評価警告を表示する場合があります。
+
 ## 機能
 
 - iOS 18 に着想を得たガラスカードデザインの Windows ネイティブ WPF インターフェイス。
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `main` に push するたびに `.github/workflows/latest-release.yml` が実行されます。
 
 1. ソリューションを復元してテストします。
-2. 自己完結型 Windows x64 ビルドを発行します。
-3. ZIP アーカイブと SHA-256 チェックサムを作成します。
-4. 以前の `latest` という名前の Release とタグだけを削除します。
-5. 現在のコミット用に新しい `latest` Release を作成します。
+2. 自己完結型のポータブル Windows x64 ビルドを発行します。
+3. ユーザー単位の Windows x64 インストーラーをビルドします。
+4. ポータブル ZIP と、両パッケージの SHA-256 チェックサムを作成します。
+5. 以前の `latest` という名前の Release とタグだけを削除します。
+6. 現在のコミット用に、インストーラー、ポータブル版、チェックサムを含む新しい `latest` Release を公開します。
 
 このワークフローはバージョン付き Release を削除しません。ローリング `latest` タグでは GitHub の **immutable releases** オプションを無効にし、ブランチまたはタグルールでワークフローによる `latest` の削除を許可する必要があります。不変 Release が必要なリポジトリでは、ワークフローを固有のビルドタグに変更してください。
 
-ローリング版の実行ファイルは現在未署名のため、Windows SmartScreen が評価警告を表示する場合があります。実行前にソースを確認し、公開された SHA-256 チェックサムを検証してください。
+ローリング版のインストーラーとポータブル実行ファイルは現在未署名のため、Windows SmartScreen が評価警告を表示する場合があります。実行前にソースを確認し、対応する公開済み SHA-256 チェックサムを検証してください。
 
 ## コントリビューション
 

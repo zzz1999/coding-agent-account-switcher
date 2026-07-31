@@ -36,6 +36,10 @@ core and a WPF presentation layer.
 - **Startup registration**: manages one application-owned value in the current
   user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. It never
   writes a machine-wide startup entry and does not require elevation.
+- **Windows installer**: installs the self-contained x64 application below the
+  current user's local application data, adds a Start Menu shortcut and an
+  HKCU uninstall entry, and never requests elevation. Installation does not
+  enable startup or read, write, or migrate application data.
 
 ## Invariants
 
@@ -63,6 +67,10 @@ core and a WPF presentation layer.
     executable. Ownership requires an unexpanded `REG_SZ` value whose command
     matches byte-for-byte; an unexpected type, empty value, or command is
     preserved rather than overwritten or deleted.
+12. Uninstall preserves `%LOCALAPPDATA%\CodingAgentAccountSwitcher`, including
+    preferences and encrypted account snapshots. It invokes the application in
+    a non-UI cleanup mode that removes the startup value only when the raw type
+    and command exactly match the installed executable.
 
 ## Provider contracts
 

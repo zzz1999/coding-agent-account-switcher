@@ -48,6 +48,23 @@ public sealed class StartupRegistrationService
         }
     }
 
+    public void RemoveOwnedRegistration()
+    {
+        var expectedCommand = BuildCommand();
+        using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+        if (runKey is null)
+        {
+            return;
+        }
+
+        // Uninstall cleanup must preserve an unexpected value even when it uses
+        // the same registry name. Ownership includes both the raw type and bytes.
+        if (ReadRegistration(runKey).IsOwned(expectedCommand))
+        {
+            runKey.DeleteValue(ValueName, throwOnMissingValue: false);
+        }
+    }
+
     private static string BuildCommand()
         => BuildCommand(Environment.ProcessPath, Assembly.GetEntryAssembly()?.Location);
 

@@ -129,4 +129,16 @@ public sealed class ApplicationPreferencesTests
                 owned with { Command = expected.ToUpperInvariant() },
                 expected));
     }
+
+    [Theory]
+    [InlineData(true, "--remove-owned-startup-registration")]
+    [InlineData(false)]
+    [InlineData(false, "--REMOVE-OWNED-STARTUP-REGISTRATION")]
+    [InlineData(false, "--remove-owned-startup-registration", "unexpected")]
+    public void UninstallCleanupModeRequiresOneExactArgument(bool expected, params string[] arguments)
+    {
+        Assert.Equal(
+            expected,
+            global::CodingAgentAccountSwitcher.App.App.IsStartupRegistrationCleanupRequest(arguments));
+    }
 }

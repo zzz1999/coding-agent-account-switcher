@@ -55,7 +55,7 @@ jobs:
             -p:DebugSymbols=false `
             -p:Version=0.1.${{ github.run_number }}
 
-      - name: Package
+      - name: Package portable build
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
@@ -74,12 +74,196 @@ jobs:
           "$hash *coding-agent-account-switcher-win-x64.zip" |
             Set-Content -LiteralPath $checksumPath -Encoding ascii
 
+      - name: Build per-user installer
+        shell: pwsh
+        run: |
+          $compilerPath = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if ([string]::IsNullOrWhiteSpace($compilerPath)) {
+            $compilerPath = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          }
+          if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
+            throw "Inno Setup compiler was not found at '$compilerPath'."
+          }
+
+          & $compilerPath .\installer\CodingAgentAccountSwitcher.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Inno Setup failed to build the installer.'
+          }
+
+          $installerPath = '.\artifacts\coding-agent-account-switcher-setup-win-x64.exe'
+          if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+            throw 'The expected installer artifact was not created.'
+          }
+
+          $checksumPath = "$installerPath.sha256"
+          $hash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash *coding-agent-account-switcher-setup-win-x64.exe" |
+            Set-Content -LiteralPath $checksumPath -Encoding ascii
+
+      - name: Smoke test installer and uninstaller
+        shell: pwsh
+        run: |
+          $installerPath = (Resolve-Path '.\artifacts\coding-agent-account-switcher-setup-win-x64.exe').Path
+          $installPath = Join-Path $env:RUNNER_TEMP 'coding-agent-account-switcher-install-smoke'
+          $installedExePath = Join-Path $installPath 'CodingAgentAccountSwitcher.exe'
+          $uninstallerPath = Join-Path $installPath 'unins000.exe'
+          $programsPath = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
+          $shortcutPath = Join-Path $programsPath 'Coding Agent Account Switcher.lnk'
+          $userDataPath = Join-Path $env:LOCALAPPDATA 'CodingAgentAccountSwitcher'
+          $sentinelPath = Join-Path $userDataPath 'installer-smoke-sentinel.txt'
+          $runKeyPath = 'Software\Microsoft\Windows\CurrentVersion\Run'
+          $startupValueName = 'CodingAgentAccountSwitcher'
+          $expectedStartupCommand = '"' + $installedExePath + '"'
+
+          function Invoke-CheckedProcess {
+            param(
+              [Parameter(Mandatory)] [string] $FilePath,
+              [Parameter(Mandatory)] [string[]] $ArgumentList
+            )
+
+            $process = Start-Process `
+              -FilePath $FilePath `
+              -ArgumentList $ArgumentList `
+              -WindowStyle Hidden `
+              -Wait `
+              -PassThru
+            if ($process.ExitCode -ne 0) {
+              throw "'$FilePath' exited with code $($process.ExitCode)."
+            }
+          }
+
+          function Wait-ForInstalledExecutableRemoval {
+            for ($attempt = 0; $attempt -lt 100; $attempt++) {
+              if (-not (Test-Path -LiteralPath $installedExePath)) {
+                return
+              }
+              Start-Sleep -Milliseconds 100
+            }
+            throw 'The installed executable remained after uninstall.'
+          }
+
+          New-Item -ItemType Directory -Force -Path $userDataPath | Out-Null
+          Set-Content -LiteralPath $sentinelPath -Value 'preserve-on-uninstall' -Encoding ascii
+
+          try {
+            Invoke-CheckedProcess `
+              -FilePath $installerPath `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installPath")
+
+            if (-not (Test-Path -LiteralPath $installedExePath -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $uninstallerPath -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
+              throw 'Installer smoke test did not create the expected application, uninstaller, and shortcut.'
+            }
+
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runKeyPath, $false)
+            try {
+              if ($null -ne $runKey -and $runKey.GetValueNames() -contains $startupValueName) {
+                throw 'Installing the application unexpectedly enabled Start with Windows.'
+              }
+            }
+            finally {
+              if ($null -ne $runKey) { $runKey.Dispose() }
+            }
+
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($runKeyPath, $true)
+            try {
+              $runKey.SetValue(
+                $startupValueName,
+                $expectedStartupCommand,
+                [Microsoft.Win32.RegistryValueKind]::String)
+            }
+            finally {
+              $runKey.Dispose()
+            }
+
+            Invoke-CheckedProcess `
+              -FilePath $uninstallerPath `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+            Wait-ForInstalledExecutableRemoval
+
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runKeyPath, $false)
+            try {
+              if ($null -ne $runKey -and $runKey.GetValueNames() -contains $startupValueName) {
+                throw 'Uninstall did not remove the exact owned startup value.'
+              }
+            }
+            finally {
+              if ($null -ne $runKey) { $runKey.Dispose() }
+            }
+            if (-not (Test-Path -LiteralPath $sentinelPath -PathType Leaf)) {
+              throw 'Uninstall removed application user data.'
+            }
+
+            Invoke-CheckedProcess `
+              -FilePath $installerPath `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installPath")
+
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($runKeyPath, $true)
+            try {
+              # The same command with REG_EXPAND_SZ is deliberately unowned and must survive uninstall.
+              $runKey.SetValue(
+                $startupValueName,
+                $expectedStartupCommand,
+                [Microsoft.Win32.RegistryValueKind]::ExpandString)
+            }
+            finally {
+              $runKey.Dispose()
+            }
+
+            Invoke-CheckedProcess `
+              -FilePath $uninstallerPath `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+            Wait-ForInstalledExecutableRemoval
+
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runKeyPath, $false)
+            try {
+              $rawValue = $runKey.GetValue(
+                $startupValueName,
+                $null,
+                [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+              if ($runKey.GetValueKind($startupValueName) -ne
+                    [Microsoft.Win32.RegistryValueKind]::ExpandString -or
+                  $rawValue -cne $expectedStartupCommand) {
+                throw 'Uninstall changed an unowned startup value.'
+              }
+            }
+            finally {
+              $runKey.Dispose()
+            }
+            if (-not (Test-Path -LiteralPath $sentinelPath -PathType Leaf)) {
+              throw 'Repeated uninstall removed application user data.'
+            }
+          }
+          finally {
+            $runKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runKeyPath, $true)
+            try {
+              if ($null -ne $runKey -and $runKey.GetValueNames() -contains $startupValueName) {
+                $rawValue = $runKey.GetValue(
+                  $startupValueName,
+                  $null,
+                  [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                if ($rawValue -ceq $expectedStartupCommand) {
+                  $runKey.DeleteValue($startupValueName, $false)
+                }
+              }
+            }
+            finally {
+              if ($null -ne $runKey) { $runKey.Dispose() }
+            }
+            if (Test-Path -LiteralPath $sentinelPath) {
+              Remove-Item -LiteralPath $sentinelPath -Force
+            }
+          }
+
       - name: Replace rolling latest release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          ASSET_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip
-          CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip.sha256
+          INSTALLER_PATH: .\artifacts\coding-agent-account-switcher-setup-win-x64.exe
+          INSTALLER_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-setup-win-x64.exe.sha256
+          PORTABLE_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip
+          PORTABLE_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-win-x64.zip.sha256
         run: |
           # Do not probe expected absence through a failing API request. Newer
           # PowerShell runners may promote native stderr to a terminating error.
@@ -114,10 +298,14 @@ jobs:
             }
           }
 
-          gh release create latest "$env:ASSET_PATH" "$env:CHECKSUM_PATH" `
+          gh release create latest `
+            "$env:INSTALLER_PATH" `
+            "$env:INSTALLER_CHECKSUM_PATH" `
+            "$env:PORTABLE_PATH" `
+            "$env:PORTABLE_CHECKSUM_PATH" `
             --target "$env:GITHUB_SHA" `
             --title 'Latest Windows build' `
-            --notes "Automated build from main commit $env:GITHUB_SHA." `
+            --notes "Automated build from main commit $env:GITHUB_SHA. Includes a per-user installer and a portable archive." `
             --latest
           if ($LASTEXITCODE -ne 0) {
             throw 'Failed to create the latest release.'

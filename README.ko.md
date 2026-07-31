@@ -11,6 +11,16 @@ Coding Agent Account Switcher는 Codex와 Claude Code가 사용하는 로컬 인
 
 “iOS 18에서 영감을 받음”은 일반적인 시각적 방향만을 의미합니다. Apple은 이 프로젝트와 관련이 없으며 Apple 글꼴, 심볼, 아트워크 또는 상표를 포함하지 않습니다.
 
+## 다운로드
+
+현재 빌드는 [latest 릴리스](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)에서 다운로드하십시오.
+
+- **권장 설치 프로그램:** `coding-agent-account-switcher-setup-win-x64.exe`는 관리자 권한 없이 현재 Windows 사용자용으로 설치하며 시작 메뉴 및 제거 항목을 만듭니다.
+- **포터블 패키지:** `coding-agent-account-switcher-win-x64.zip`은 설치하지 않고 압축을 풀어 실행할 수 있습니다.
+- 릴리스에는 각 패키지에 해당하는 SHA-256 체크섬 파일이 포함됩니다.
+
+설치 프로그램은 **Windows 시작 시 실행**을 자동으로 활성화하지 않으며 Codex 또는 Claude Code 인증이나 구성 파일을 건드리지 않습니다. 앱을 제거해도 암호화된 계정 스냅샷과 앱 설정은 보존되어 다시 설치한 뒤에도 사용할 수 있습니다. 설치 프로그램과 포터블 실행 파일은 현재 서명되지 않았으므로 Windows SmartScreen에서 평판 경고를 표시할 수 있습니다.
+
 ## 기능
 
 - iOS 18에서 영감을 받은 글래스 카드 디자인의 Windows 네이티브 WPF 인터페이스.
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `main`에 푸시할 때마다 `.github/workflows/latest-release.yml`이 실행됩니다.
 
 1. 솔루션을 복원하고 테스트합니다.
-2. 자체 포함 Windows x64 빌드를 게시합니다.
-3. ZIP 아카이브와 SHA-256 체크섬을 생성합니다.
-4. 이전의 `latest`라는 릴리스와 태그만 삭제합니다.
-5. 현재 커밋용 새 `latest` 릴리스를 생성합니다.
+2. 자체 포함 포터블 Windows x64 빌드를 게시합니다.
+3. 사용자별 Windows x64 설치 프로그램을 빌드합니다.
+4. 포터블 ZIP과 두 패키지의 SHA-256 체크섬을 생성합니다.
+5. 이전의 `latest`라는 릴리스와 태그만 삭제합니다.
+6. 현재 커밋용 새 `latest` 릴리스에 설치 프로그램, 포터블 패키지 및 체크섬을 게시합니다.
 
 이 워크플로는 버전이 지정된 릴리스를 삭제하지 않습니다. 롤링 `latest` 태그에서는 GitHub의 **immutable releases** 옵션을 비활성화해야 하며 브랜치 또는 태그 규칙에서 워크플로가 `latest`를 삭제할 수 있도록 허용해야 합니다. 변경 불가능한 릴리스가 필요한 저장소는 워크플로를 고유한 빌드 태그로 변경해야 합니다.
 
-롤링 실행 파일은 현재 서명되지 않았으므로 Windows SmartScreen에서 평판 경고를 표시할 수 있습니다. 실행하기 전에 소스를 검토하고 게시된 SHA-256 체크섬을 확인하십시오.
+롤링 설치 프로그램과 포터블 실행 파일은 현재 서명되지 않았으므로 Windows SmartScreen에서 평판 경고를 표시할 수 있습니다. 실행하기 전에 소스를 검토하고 해당 게시된 SHA-256 체크섬을 확인하십시오.
 
 ## 기여
 

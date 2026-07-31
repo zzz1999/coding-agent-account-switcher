@@ -11,6 +11,16 @@ Coding Agent Account Switcher 會為 Codex 與 Claude Code 使用的本機驗證
 
 「仿 iOS 18」僅描述整體視覺方向。Apple 與本專案無關，專案也未附帶任何 Apple 字型、符號、美術資源或商標。
 
+## 下載
+
+請從 [latest Release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest) 下載目前版本：
+
+- **建議安裝程式：** `coding-agent-account-switcher-setup-win-x64.exe`，只為目前的 Windows 使用者安裝，不需要系統管理員權限，並會建立開始功能表捷徑及解除安裝項目。
+- **可攜版：** `coding-agent-account-switcher-win-x64.zip`，解壓縮後即可執行，不需要安裝。
+- Release 會為兩個套件分別提供對應的 SHA-256 總和檢查檔。
+
+安裝程式不會自動啟用**隨 Windows 啟動**，也不會碰觸 Codex 或 Claude Code 的驗證檔案與設定檔。解除安裝時會保留加密的帳號快照和應用程式設定，重新安裝後仍可使用。安裝程式及可攜版執行檔目前皆未經數位簽章，因此 Windows SmartScreen 可能顯示信譽警告。
+
 ## 功能
 
 - Windows 原生 WPF 介面，採用仿 iOS 18 的玻璃卡片設計。
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 每次推送至 `main` 時，`.github/workflows/latest-release.yml` 都會執行：
 
 1. 還原相依套件並測試方案。
-2. 發佈自包含的 Windows x64 組建。
-3. 建立 ZIP 封存檔及 SHA-256 總和檢查碼。
-4. 只刪除先前名為 `latest` 的 Release 及標籤。
-5. 為目前提交建立新的 `latest` Release。
+2. 發佈自包含的 Windows x64 可攜版。
+3. 建置目前使用者層級的 Windows x64 安裝程式。
+4. 建立可攜版 ZIP，並分別為安裝程式與可攜版產生 SHA-256 總和檢查碼。
+5. 只刪除先前名為 `latest` 的 Release 及標籤。
+6. 為目前提交建立新的 `latest` Release，並發佈安裝程式、可攜版及總和檢查檔。
 
 此工作流程絕不會刪除有版本號的 Release。滾動 `latest` 標籤必須停用 GitHub 的 **immutable releases** 選項，而且分支或標籤規則必須允許工作流程刪除 `latest`。要求不可變 Release 的存放庫應將工作流程改為使用唯一的組建標籤。
 
-滾動版本中的執行檔目前沒有數位簽章，因此 Windows SmartScreen 可能顯示信譽警告。執行前請檢查原始碼，並驗證發佈的 SHA-256 總和檢查碼。
+滾動版本中的安裝程式與可攜版執行檔目前皆未經數位簽章，因此 Windows SmartScreen 可能顯示信譽警告。執行前請檢查原始碼，並驗證對應的 SHA-256 總和檢查碼。
 
 ## 參與貢獻
 

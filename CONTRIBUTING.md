@@ -10,6 +10,12 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ```
 
+The rolling Release workflow compiles
+`installer/CodingAgentAccountSwitcher.iss` with the Inno Setup compiler bundled
+on GitHub-hosted Windows runners. To build the installer locally, first publish
+the self-contained application to `artifacts/publish`, copy `LICENSE` into that
+directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
+
 ## Pull request expectations
 
 - Keep provider-specific paths and process rules inside provider adapters.
@@ -26,6 +32,8 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
   interaction target in UI changes.
 - Do not include Apple fonts, SF Symbols, Apple artwork, or provider logos.
 - Run `dotnet test` and `git diff --check` before submitting.
+- When release packaging changes, verify that the installer EXE, portable ZIP,
+  and both SHA-256 sidecars are all attached to the rolling `latest` Release.
 
 ## Commit scope
 

@@ -11,6 +11,16 @@ Coding Agent Account Switcher conserve des instantanés nommés et chiffrés des
 
 La mention « inspiré d’iOS 18 » décrit uniquement l’orientation visuelle générale. Apple n’est pas affiliée à ce projet, qui n’intègre aucune police, aucun symbole, aucune illustration et aucune marque d’Apple.
 
+## Téléchargement
+
+Téléchargez la version actuelle depuis la [release latest](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest) :
+
+- **Programme d’installation recommandé :** `coding-agent-account-switcher-setup-win-x64.exe` installe l’application pour l’utilisateur Windows actuel sans privilèges d’administrateur et crée des entrées dans le menu Démarrer et pour la désinstallation.
+- **Paquet portable :** `coding-agent-account-switcher-win-x64.zip` peut être extrait et exécuté sans installation.
+- La release contient un fichier de somme de contrôle SHA-256 correspondant pour chaque paquet.
+
+Le programme d’installation n’active pas automatiquement **Démarrer avec Windows** et ne modifie aucun fichier d’authentification ou de configuration de Codex ou Claude Code. La désinstallation conserve les instantanés de comptes chiffrés et les paramètres de l’application afin qu’ils restent disponibles après une réinstallation. Le programme d’installation et l’exécutable portable ne sont actuellement pas signés ; Windows SmartScreen peut donc afficher un avertissement de réputation.
+
 ## Fonctionnalités
 
 - Interface WPF native pour Windows avec des cartes en verre inspirées d’iOS 18.
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `.github/workflows/latest-release.yml` s’exécute à chaque push vers `main` :
 
 1. Restauration et test de la solution.
-2. Publication d’une compilation Windows x64 autonome.
-3. Création d’une archive ZIP et d’une somme de contrôle SHA-256.
-4. Suppression de la seule release précédente et du seul tag précédent nommés `latest`.
-5. Création d’une nouvelle release `latest` pour le commit actuel.
+2. Publication d’une compilation portable Windows x64 autonome.
+3. Création du programme d’installation Windows x64 par utilisateur.
+4. Création du ZIP portable et des sommes de contrôle SHA-256 des deux paquets.
+5. Suppression de la seule release précédente et du seul tag précédent nommés `latest`.
+6. Publication d’une nouvelle release `latest` avec le programme d’installation, le paquet portable et les sommes de contrôle pour le commit actuel.
 
 Ce workflow ne supprime jamais les releases versionnées. L’option **immutable releases** de GitHub doit rester désactivée pour le tag glissant `latest`, et les règles de branche ou de tag doivent autoriser le workflow à supprimer `latest`. Un dépôt exigeant des releases immuables doit employer des tags de compilation uniques.
 
-L’exécutable glissant n’est actuellement pas signé ; Windows SmartScreen peut donc afficher un avertissement de réputation. Examinez le code source et vérifiez la somme SHA-256 publiée avant de l’exécuter.
+Le programme d’installation et l’exécutable portable glissants ne sont actuellement pas signés ; Windows SmartScreen peut donc afficher un avertissement de réputation. Examinez le code source et vérifiez la somme SHA-256 publiée correspondante avant d’exécuter l’un ou l’autre paquet.
 
 ## Contribuer
 

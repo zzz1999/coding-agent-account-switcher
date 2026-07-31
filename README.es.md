@@ -11,6 +11,16 @@ Coding Agent Account Switcher guarda instantáneas cifradas y con nombre de los 
 
 La mención «inspirado en iOS 18» se refiere únicamente a la dirección visual general. Apple no está afiliada con este proyecto y no se incluyen tipografías, símbolos, ilustraciones ni marcas de Apple.
 
+## Descarga
+
+Descargue la compilación actual desde la [versión latest](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
+
+- **Instalador recomendado:** `coding-agent-account-switcher-setup-win-x64.exe` instala la aplicación para el usuario actual de Windows sin privilegios de administrador y crea accesos en el menú Inicio y para la desinstalación.
+- **Paquete portátil:** `coding-agent-account-switcher-win-x64.zip` se puede extraer y ejecutar sin instalación.
+- La versión incluye un archivo de suma SHA-256 correspondiente para cada paquete.
+
+El instalador no activa automáticamente **Iniciar con Windows** ni modifica los archivos de autenticación o configuración de Codex o Claude Code. La desinstalación conserva las instantáneas de cuentas cifradas y los ajustes de la aplicación para que sigan disponibles tras reinstalarla. El instalador y el ejecutable portátil no están firmados actualmente, por lo que Windows SmartScreen puede mostrar una advertencia de reputación.
+
 ## Funciones
 
 - Interfaz WPF nativa de Windows con un diseño de tarjetas de cristal inspirado en iOS 18.
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `.github/workflows/latest-release.yml` se ejecuta con cada push a `main`:
 
 1. Restaura y prueba la solución.
-2. Publica una compilación autónoma para Windows x64.
-3. Crea un archivo ZIP y una suma SHA-256.
-4. Elimina únicamente la versión y la etiqueta anteriores llamadas `latest`.
-5. Crea una nueva versión `latest` para el commit actual.
+2. Publica una compilación portátil autónoma para Windows x64.
+3. Crea el instalador para el usuario actual de Windows x64.
+4. Crea el ZIP portátil y las sumas SHA-256 de ambos paquetes.
+5. Elimina únicamente la versión y la etiqueta anteriores llamadas `latest`.
+6. Publica una nueva versión `latest` con el instalador, el paquete portátil y las sumas para el commit actual.
 
 El flujo nunca elimina versiones numeradas. La opción **immutable releases** de GitHub debe estar desactivada para la etiqueta continua `latest`, y las reglas de ramas o etiquetas deben permitir que el flujo elimine `latest`. Los repositorios que exijan versiones inmutables deben usar etiquetas de compilación únicas.
 
-El ejecutable continuo no está firmado actualmente, por lo que Windows SmartScreen puede mostrar una advertencia de reputación. Revise el código fuente y verifique la suma SHA-256 publicada antes de ejecutarlo.
+El instalador y el ejecutable portátil continuos no están firmados actualmente, por lo que Windows SmartScreen puede mostrar una advertencia de reputación. Revise el código fuente y verifique la suma SHA-256 publicada correspondiente antes de ejecutar cualquiera de los paquetes.
 
 ## Contribuir
 

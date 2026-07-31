@@ -11,6 +11,16 @@ O Coding Agent Account Switcher armazena instantâneos nomeados e criptografados
 
 A descrição “inspirado no iOS 18” se refere apenas à direção visual geral. A Apple não é afiliada a este projeto, e nenhuma fonte, símbolo, arte ou marca da Apple é incluída.
 
+## Download
+
+Baixe a build atual na [release latest](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
+
+- **Instalador recomendado:** `coding-agent-account-switcher-setup-win-x64.exe` instala para o usuário atual do Windows sem privilégios de administrador e cria entradas no menu Iniciar e de desinstalação.
+- **Pacote portátil:** `coding-agent-account-switcher-win-x64.zip` pode ser extraído e executado sem instalação.
+- A release inclui um arquivo de soma SHA-256 correspondente para cada pacote.
+
+O instalador não ativa automaticamente **Iniciar com o Windows** e não altera arquivos de autenticação ou configuração do Codex ou Claude Code. A desinstalação preserva os snapshots de contas criptografados e as configurações do aplicativo para que continuem disponíveis após uma reinstalação. O instalador e o executável portátil não são assinados no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação.
+
 ## Recursos
 
 - Interface WPF nativa do Windows com design de cartões de vidro inspirado no iOS 18.
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `.github/workflows/latest-release.yml` é executado a cada push para `main`:
 
 1. Restaura e testa a solução.
-2. Publica uma build autossuficiente para Windows x64.
-3. Cria um arquivo ZIP e uma soma de verificação SHA-256.
-4. Exclui somente a release e a tag anteriores chamadas `latest`.
-5. Cria uma nova release `latest` para o commit atual.
+2. Publica uma build portátil e autossuficiente para Windows x64.
+3. Cria o instalador Windows x64 por usuário.
+4. Cria o ZIP portátil e as somas SHA-256 dos dois pacotes.
+5. Exclui somente a release e a tag anteriores chamadas `latest`.
+6. Publica uma nova release `latest` com o instalador, o pacote portátil e as somas para o commit atual.
 
 Releases versionadas nunca são excluídas por esse fluxo. A opção **immutable releases** do GitHub deve permanecer desativada para a tag contínua `latest`, e as regras de branch ou tag devem permitir que o fluxo exclua `latest`. Repositórios que exigem releases imutáveis devem usar tags de build exclusivas.
 
-O executável contínuo não é assinado no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação. Revise o código-fonte e verifique a soma SHA-256 publicada antes de executá-lo.
+O instalador e o executável portátil contínuos não são assinados no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação. Revise o código-fonte e verifique a soma SHA-256 publicada correspondente antes de executar qualquer pacote.
 
 ## Como contribuir
 

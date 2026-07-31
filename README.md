@@ -18,6 +18,23 @@ The iOS 18-inspired description refers only to general visual direction. Apple
 is not affiliated with this project, and no Apple fonts, symbols, artwork, or
 trademarks are bundled.
 
+## Download
+
+Download the current build from the [latest release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
+
+- **Recommended installer:** `coding-agent-account-switcher-setup-win-x64.exe`
+  installs for the current Windows user without administrator privileges and
+  creates Start menu and uninstall entries.
+- **Portable package:** `coding-agent-account-switcher-win-x64.zip` can be
+  extracted and run without installation.
+- Each package includes a matching SHA-256 checksum file in the release.
+
+The installer does not enable **Start with Windows** automatically and does not
+touch Codex or Claude Code authentication or configuration files. Uninstalling
+the app preserves encrypted account snapshots and application settings so they
+remain available after reinstalling. The installer and portable executable are
+currently unsigned, so Windows SmartScreen may show a reputation warning.
+
 ## Features
 
 - Windows-native WPF interface with an iOS 18-inspired glass-card design.
@@ -162,19 +179,21 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `.github/workflows/latest-release.yml` runs for every push to `main`:
 
 1. Restore and test the solution.
-2. Publish a self-contained Windows x64 build.
-3. Create a ZIP archive and SHA-256 checksum.
-4. Delete only the previous release and tag named `latest`.
-5. Create a new `latest` release for the current commit.
+2. Publish a self-contained portable Windows x64 build.
+3. Build the per-user Windows x64 installer.
+4. Create the portable ZIP and SHA-256 checksums for both packages.
+5. Delete only the previous release and tag named `latest`.
+6. Publish a new `latest` release with the installer, portable package, and
+   checksums for the current commit.
 
 Versioned releases are never deleted by this workflow. GitHub's **immutable
 releases** option must remain disabled for the rolling `latest` tag, and branch
 or tag rules must allow the workflow to delete `latest`. Repositories that
 require immutable releases should change the workflow to unique build tags.
 
-The rolling executable is currently unsigned, so Windows SmartScreen may show a
-reputation warning. Review the source and verify the published SHA-256 checksum
-before running it.
+The rolling installer and portable executable are currently unsigned, so
+Windows SmartScreen may show a reputation warning. Review the source and verify
+the appropriate published SHA-256 checksum before running either package.
 
 ## Contributing
 

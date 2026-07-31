@@ -49,3 +49,18 @@ storage and cross-user access, not to replace endpoint security.
   Never overwrite or delete an unexpected startup value.
 - Treat a startup-registration failure as a failed setting change: preserve the
   previous preference and report the error without changing authentication data.
+
+## Installer and uninstaller requirements
+
+- Build a per-user installer that does not request administrator privileges.
+- Never enable startup during installation. Startup remains an explicit setting
+  inside the application.
+- Never read, copy, replace, or delete provider authentication files, provider
+  configuration, application preferences, or encrypted snapshots during setup.
+- Preserve `%LOCALAPPDATA%\CodingAgentAccountSwitcher` during uninstall so an
+  uninstall or reinstall cannot silently destroy saved accounts.
+- During uninstall, remove the current-user startup value only when it is a raw
+  `REG_SZ` command that exactly identifies the executable being uninstalled.
+  Preserve mismatched names, types, and commands.
+- Treat the downloadable installer as unsigned until a code-signing process is
+  configured. Publish a SHA-256 sidecar for both installer and portable assets.

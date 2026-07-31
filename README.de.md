@@ -11,6 +11,16 @@ Coding Agent Account Switcher speichert benannte, verschlüsselte Momentaufnahme
 
 „Von iOS 18 inspiriert“ beschreibt lediglich die allgemeine visuelle Richtung. Apple steht in keiner Verbindung zu diesem Projekt; Apple-Schriften, -Symbole, -Grafiken oder -Marken werden nicht mitgeliefert.
 
+## Download
+
+Laden Sie den aktuellen Build aus dem [latest-Release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest) herunter:
+
+- **Empfohlenes Installationsprogramm:** `coding-agent-account-switcher-setup-win-x64.exe` installiert die Anwendung ohne Administratorrechte für den aktuellen Windows-Benutzer und erstellt Einträge im Startmenü und zur Deinstallation.
+- **Portable Version:** `coding-agent-account-switcher-win-x64.zip` kann ohne Installation entpackt und ausgeführt werden.
+- Das Release enthält für jedes Paket eine passende SHA-256-Prüfsummendatei.
+
+Das Installationsprogramm aktiviert **Mit Windows starten** nicht automatisch und verändert keine Authentifizierungs- oder Konfigurationsdateien von Codex oder Claude Code. Bei der Deinstallation bleiben verschlüsselte Kontoschnappschüsse und Anwendungseinstellungen erhalten, sodass sie nach einer Neuinstallation weiterhin verfügbar sind. Das Installationsprogramm und die portable ausführbare Datei sind derzeit nicht signiert; Windows SmartScreen kann deshalb eine Reputationswarnung anzeigen.
+
 ## Funktionen
 
 - Native Windows-WPF-Oberfläche mit einem von iOS 18 inspirierten Glaskarten-Design.
@@ -105,14 +115,15 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 `.github/workflows/latest-release.yml` wird bei jedem Push nach `main` ausgeführt:
 
 1. Solution wiederherstellen und testen.
-2. Eigenständigen Windows-x64-Build veröffentlichen.
-3. ZIP-Archiv und SHA-256-Prüfsumme erstellen.
-4. Ausschließlich das vorherige Release und Tag namens `latest` löschen.
-5. Ein neues `latest`-Release für den aktuellen Commit erstellen.
+2. Eigenständigen portablen Windows-x64-Build veröffentlichen.
+3. Das benutzerspezifische Windows-x64-Installationsprogramm erstellen.
+4. Das portable ZIP und SHA-256-Prüfsummen für beide Pakete erstellen.
+5. Ausschließlich das vorherige Release und Tag namens `latest` löschen.
+6. Ein neues `latest`-Release mit Installationsprogramm, portablem Paket und Prüfsummen für den aktuellen Commit veröffentlichen.
 
 Versionierte Releases werden von diesem Workflow nie gelöscht. GitHubs Option **immutable releases** muss für das fortlaufende `latest`-Tag deaktiviert bleiben, und Branch- oder Tag-Regeln müssen dem Workflow erlauben, `latest` zu löschen. Repositorys, die unveränderliche Releases verlangen, sollten den Workflow auf eindeutige Build-Tags umstellen.
 
-Die fortlaufende ausführbare Datei ist derzeit nicht signiert. Windows SmartScreen kann deshalb eine Reputationswarnung anzeigen. Prüfen Sie vor der Ausführung den Quellcode und die veröffentlichte SHA-256-Prüfsumme.
+Das fortlaufende Installationsprogramm und die portable ausführbare Datei sind derzeit nicht signiert. Windows SmartScreen kann deshalb eine Reputationswarnung anzeigen. Prüfen Sie vor der Ausführung den Quellcode und die jeweils veröffentlichte SHA-256-Prüfsumme.
 
 ## Mitwirken
 
