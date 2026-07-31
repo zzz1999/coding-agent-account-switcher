@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodingAgentAccountSwitcher.Core\CodingAgentAccountSwitcher.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>CodingAgentAccountSwitcher</AssemblyName>
+    <AssemblyTitle>Coding Agent Account Switcher</AssemblyTitle>
+    <RootNamespace>CodingAgentAccountSwitcher.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <Authors>Coding Agent Account Switcher contributors</Authors>
+    <Product>Coding Agent Account Switcher</Product>
+    <Description>An unofficial local Windows account switcher for Codex and Claude Code.</Description>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>
