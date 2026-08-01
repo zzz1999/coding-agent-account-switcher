@@ -21,16 +21,19 @@
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="#FFB5BDCA" />
     <SolidColorBrush x:Key="Brush.Text.Tertiary" Color="#FF929DAC" />
     <SolidColorBrush x:Key="Brush.Text.Inverse" Color="#FF0C1020" />
-    <SolidColorBrush x:Key="Brush.Accent" Color="#FF8493FF" />
-    <SolidColorBrush x:Key="Brush.Accent.Hover" Color="#FF98A3FF" />
-    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#FF293252" />
+    <!-- Dark appearance uses the brighter iOS system-blue family with a separate readable foreground. -->
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF0A84FF" />
+    <SolidColorBrush x:Key="Brush.Accent.Hover" Color="#FF3198FF" />
+    <SolidColorBrush x:Key="Brush.Accent.Pressed" Color="#FF007CEB" />
+    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#FF173A5E" />
+    <SolidColorBrush x:Key="Brush.Accent.Foreground" Color="#FF66B3FF" />
     <SolidColorBrush x:Key="Brush.State.Success" Color="#FF52D39A" />
     <SolidColorBrush x:Key="Brush.State.SuccessMuted" Color="#FF17382B" />
     <SolidColorBrush x:Key="Brush.State.Warning" Color="#FFFFC783" />
     <SolidColorBrush x:Key="Brush.State.WarningMuted" Color="#FF3B2D1C" />
     <SolidColorBrush x:Key="Brush.State.Danger" Color="#FFFF7586" />
     <SolidColorBrush x:Key="Brush.State.DangerMuted" Color="#FF401F27" />
-    <SolidColorBrush x:Key="Brush.FocusRing" Color="#FFA8B3FF" />
+    <SolidColorBrush x:Key="Brush.FocusRing" Color="#FF66B3FF" />
     <SolidColorBrush x:Key="Brush.FocusRing.OnAccent" Color="#FF0F141B" />
     <SolidColorBrush x:Key="Brush.FocusRing.OnToggle" Color="#FF0F141B" />
     <SolidColorBrush x:Key="Brush.Scrim" Color="#CC05080D" />

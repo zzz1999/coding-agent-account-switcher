@@ -134,7 +134,7 @@
                                        VerticalAlignment="Center"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Foreground="{DynamicResource Brush.Accent.Foreground}"
                                        Text="{Binding Initials}" />
                         </Border>
                         <StackPanel Grid.Column="1"
@@ -249,7 +249,7 @@
                                        VerticalAlignment="Center"
                                        FontSize="13"
                                        FontWeight="Bold"
-                                       Foreground="{DynamicResource Brush.Accent}"
+                                       Foreground="{DynamicResource Brush.Accent.Foreground}"
                                        Text="AS" />
                         </Border>
                         <TextBlock Margin="11,0,0,0"
@@ -651,7 +651,7 @@
                                  FlowDirection="LeftToRight">
                             <Canvas Width="24" Height="24">
                                 <Path Style="{StaticResource Style.Icon.RoundedPath}"
-                                      Stroke="{DynamicResource Brush.Accent}"
+                                      Stroke="{DynamicResource Brush.Accent.Foreground}"
                                       StrokeThickness="2.1"
                                       Data="M12,5.5 L12,18.5 M5.5,12 L18.5,12" />
                             </Canvas>
@@ -724,7 +724,7 @@
                                  FlowDirection="LeftToRight">
                             <Canvas Width="24" Height="24">
                                 <Path Style="{StaticResource Style.Icon.RoundedPath}"
-                                      Stroke="{DynamicResource Brush.Accent}"
+                                      Stroke="{DynamicResource Brush.Accent.Foreground}"
                                       StrokeThickness="1.9"
                                       Data="M9.594,3.94 C9.684,3.398 10.154,3 10.704,3 H13.296 C13.846,3 14.316,3.398 14.406,3.94 L14.619,5.221 C14.682,5.595 14.932,5.907 15.264,6.091 C15.338,6.131 15.411,6.174 15.484,6.218 C15.809,6.414 16.204,6.475 16.559,6.342 L17.776,5.886 C18.29,5.693 18.869,5.9 19.146,6.376 L20.442,8.623 C20.717,9.099 20.61,9.702 20.19,10.053 L19.194,10.88 C18.902,11.123 18.756,11.493 18.764,11.872 C18.766,11.957 18.766,12.042 18.764,12.127 C18.756,12.505 18.902,12.876 19.194,13.118 L20.189,13.946 C20.609,14.296 20.717,14.9 20.442,15.376 L19.146,17.623 C18.869,18.099 18.29,18.306 17.776,18.113 L16.559,17.657 C16.204,17.524 15.809,17.585 15.483,17.781 C15.411,17.825 15.337,17.868 15.263,17.909 C14.932,18.092 14.682,18.404 14.619,18.778 L14.406,20.059 C14.316,20.602 13.846,21 13.296,21 H10.704 C10.154,21 9.684,20.602 9.594,20.059 L9.381,18.778 C9.318,18.404 9.068,18.092 8.737,17.908 C8.663,17.868 8.59,17.825 8.517,17.781 C8.191,17.585 7.796,17.524 7.441,17.657 L6.224,18.113 C5.71,18.306 5.131,18.099 4.854,17.623 L3.558,15.376 C3.283,14.9 3.391,14.296 3.811,13.946 L4.806,13.119 C5.098,12.876 5.244,12.505 5.236,12.127 C5.234,12.042 5.234,11.957 5.236,11.872 C5.244,11.493 5.098,11.123 4.806,10.881 L3.811,10.053 C3.391,9.703 3.283,9.099 3.558,8.623 L4.854,6.376 C5.131,5.9 5.71,5.693 6.224,5.886 L7.441,6.342 C7.797,6.475 8.191,6.414 8.517,6.218 C8.589,6.174 8.663,6.131 8.737,6.09 C9.068,5.907 9.318,5.595 9.381,5.221 L9.594,3.94 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12 Z" />
                             </Canvas>

@@ -21,16 +21,19 @@
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="#FF5B6372" />
     <SolidColorBrush x:Key="Brush.Text.Tertiary" Color="#FF5F6878" />
     <SolidColorBrush x:Key="Brush.Text.Inverse" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="Brush.Accent" Color="#FF4659D9" />
-    <SolidColorBrush x:Key="Brush.Accent.Hover" Color="#FF394BC7" />
-    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#FFE9ECFF" />
+    <!-- iOS system-blue hue, darkened slightly so small white button labels remain AA-compliant. -->
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF006EDB" />
+    <SolidColorBrush x:Key="Brush.Accent.Hover" Color="#FF0064C8" />
+    <SolidColorBrush x:Key="Brush.Accent.Pressed" Color="#FF005AB5" />
+    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#FFEDF6FF" />
+    <SolidColorBrush x:Key="Brush.Accent.Foreground" Color="#FF006EDB" />
     <SolidColorBrush x:Key="Brush.State.Success" Color="#FF1F7450" />
     <SolidColorBrush x:Key="Brush.State.SuccessMuted" Color="#FFE7F4ED" />
     <SolidColorBrush x:Key="Brush.State.Warning" Color="#FF9A5D00" />
     <SolidColorBrush x:Key="Brush.State.WarningMuted" Color="#FFFFF1DC" />
     <SolidColorBrush x:Key="Brush.State.Danger" Color="#FFB83246" />
     <SolidColorBrush x:Key="Brush.State.DangerMuted" Color="#FFFDE8EC" />
-    <SolidColorBrush x:Key="Brush.FocusRing" Color="#FF4659D9" />
+    <SolidColorBrush x:Key="Brush.FocusRing" Color="#FF006EDB" />
     <SolidColorBrush x:Key="Brush.FocusRing.OnAccent" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.FocusRing.OnToggle" Color="#FF10131A" />
     <SolidColorBrush x:Key="Brush.Scrim" Color="#8A111827" />
