@@ -32,7 +32,7 @@ directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
   interaction target in UI changes.
 - Do not include Apple fonts, SF Symbols, Apple artwork, or provider logos.
 - Run `dotnet test` and `git diff --check` before submitting.
-- When release packaging changes, verify that the installer EXE, portable ZIP,
+- When release packaging changes, verify that the installer EXE, portable EXE,
   and both SHA-256 sidecars are all attached to the rolling `latest` Release.
 
 ## Commit scope

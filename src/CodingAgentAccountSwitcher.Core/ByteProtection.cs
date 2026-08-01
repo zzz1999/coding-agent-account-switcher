@@ -35,13 +35,15 @@ public sealed class DpapiCurrentUserProtector : IByteProtector
 
     private static byte[] Transform(byte[] inputBytes, byte[] entropyBytes, bool protect)
     {
-        var input = AllocateBlob(inputBytes);
-        var entropy = AllocateBlob(entropyBytes);
+        var input = default(DataBlob);
+        var entropy = default(DataBlob);
         var output = default(DataBlob);
         var description = IntPtr.Zero;
 
         try
         {
+            input = AllocateBlob(inputBytes);
+            entropy = AllocateBlob(entropyBytes);
             var succeeded = protect
                 ? CryptProtectData(ref input, null, ref entropy, IntPtr.Zero, IntPtr.Zero,
                     CryptprotectUiForbidden, out output)
@@ -61,12 +63,20 @@ public sealed class DpapiCurrentUserProtector : IByteProtector
             }
 
             var result = new byte[output.Size];
-            if (output.Size > 0)
+            try
             {
-                Marshal.Copy(output.Data, result, 0, output.Size);
-            }
+                if (output.Size > 0)
+                {
+                    Marshal.Copy(output.Data, result, 0, output.Size);
+                }
 
-            return result;
+                return result;
+            }
+            catch
+            {
+                CryptographicOperations.ZeroMemory(result);
+                throw;
+            }
         }
         finally
         {
@@ -89,8 +99,17 @@ public sealed class DpapiCurrentUserProtector : IByteProtector
         }
 
         var pointer = Marshal.AllocHGlobal(bytes.Length);
-        Marshal.Copy(bytes, 0, pointer, bytes.Length);
-        return new DataBlob { Size = bytes.Length, Data = pointer };
+        try
+        {
+            Marshal.Copy(bytes, 0, pointer, bytes.Length);
+            return new DataBlob { Size = bytes.Length, Data = pointer };
+        }
+        catch
+        {
+            ClearUnmanagedMemory(pointer, bytes.Length);
+            Marshal.FreeHGlobal(pointer);
+            throw;
+        }
     }
 
     private static void FreeAllocatedBlob(ref DataBlob blob, bool clear)

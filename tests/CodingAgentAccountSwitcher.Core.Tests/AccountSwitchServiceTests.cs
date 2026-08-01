@@ -36,6 +36,7 @@ public sealed class AccountSwitchServiceTests
         Assert.Equal(configuration, File.ReadAllBytes(configPath));
         Assert.Equal(targetProfile.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
         Assert.Null(vault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Empty(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
     }
 
     [Theory]
@@ -219,6 +220,63 @@ public sealed class AccountSwitchServiceTests
     }
 
     [Fact]
+    public async Task FailedActiveStateWriteRemovesNewlyCapturedProfile()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] currentLogin = [2, 4, 6, 8];
+        File.WriteAllBytes(authenticationPath, currentLogin);
+
+        var writer = new FailOnceActiveStateWriter { Enabled = true };
+        var vault = new AuthenticationProfileVault(
+            System.IO.Path.Combine(temporary.Path, "vault"),
+            atomicWriter: writer);
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+
+        var result = await service.CaptureCurrentLoginAsync(adapter, "Personal");
+
+        Assert.Equal(AccountOperationStatus.Failed, result.Status);
+        Assert.Empty(vault.ListProfiles(AgentProvider.Codex));
+        Assert.Null(vault.GetActiveProfile(AgentProvider.Codex));
+        Assert.Empty(Directory.GetFiles(vault.RootDirectory, "*.vault", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(vault.RootDirectory, "*.metadata.json", SearchOption.AllDirectories));
+        Assert.Equal(currentLogin, File.ReadAllBytes(authenticationPath));
+    }
+
+    [Fact]
+    public async Task FailedActiveStateWriteRestoresReplacedProfileExactly()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] savedLogin = [1, 3, 5, 7];
+        byte[] replacementLogin = [2, 4, 6, 8];
+        File.WriteAllBytes(authenticationPath, savedLogin);
+
+        var writer = new FailOnceActiveStateWriter();
+        var vault = new AuthenticationProfileVault(
+            System.IO.Path.Combine(temporary.Path, "vault"),
+            atomicWriter: writer);
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+        var initialCapture = await service.CaptureCurrentLoginAsync(adapter, "Personal");
+        var initialMetadata = initialCapture.Profile!;
+        var initialActiveState = vault.GetActiveProfile(AgentProvider.Codex)!;
+        File.WriteAllBytes(authenticationPath, replacementLogin);
+        writer.Enabled = true;
+
+        var result = await service.CaptureCurrentLoginAsync(
+            adapter,
+            "Personal",
+            initialMetadata.ProfileId);
+
+        Assert.Equal(AccountOperationStatus.Failed, result.Status);
+        Assert.Equal(initialMetadata, vault.GetProfile(AgentProvider.Codex, initialMetadata.ProfileId));
+        Assert.Equal(savedLogin, vault.LoadCredential(AgentProvider.Codex, initialMetadata.ProfileId));
+        Assert.Equal(initialActiveState, vault.GetActiveProfile(AgentProvider.Codex));
+        Assert.Single(vault.ListProfiles(AgentProvider.Codex));
+        Assert.Equal(replacementLogin, File.ReadAllBytes(authenticationPath));
+    }
+
+    [Fact]
     public async Task FailedStateCommitRollsAuthenticationFileBack()
     {
         using var temporary = new TemporaryDirectory();
@@ -241,6 +299,57 @@ public sealed class AccountSwitchServiceTests
         Assert.Equal(source, File.ReadAllBytes(authenticationPath));
         Assert.Equal(sourceCapture.Profile!.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
         Assert.Null(vault.GetPendingJournal(AgentProvider.Codex));
+    }
+
+    [Theory]
+    [InlineData(ProcessInspectionStatus.Running)]
+    [InlineData(ProcessInspectionStatus.Unknown)]
+    public async Task FailedSwitchDefersRollbackWhenFinalProcessCheckIsUnsafe(
+        ProcessInspectionStatus inspectionStatus)
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] source = [1, 4, 1, 4];
+        byte[] target = [2, 7, 1, 8];
+        File.WriteAllBytes(authenticationPath, source);
+
+        var writer = new FailOnceActiveStateWriter();
+        var vault = new AuthenticationProfileVault(
+            System.IO.Path.Combine(temporary.Path, "vault"),
+            atomicWriter: writer);
+        var clearService = CreateService(vault, ProcessInspectionResult.Clear);
+        var sourceCapture = await clearService.CaptureCurrentLoginAsync(adapter, "Personal");
+        var targetProfile = vault.CreateProfile(AgentProvider.Codex, "Work", target);
+        writer.Enabled = true;
+
+        var unsafeInspection = new ProcessInspectionResult
+        {
+            Status = inspectionStatus,
+            Processes = inspectionStatus == ProcessInspectionStatus.Running
+                ? [new DetectedProcess(99, "codex")]
+                : [],
+            Issues = inspectionStatus == ProcessInspectionStatus.Unknown
+                ? [new ProcessInspectionIssue("codex", "Synthetic inspection failure")]
+                : []
+        };
+        var service = CreateService(
+            vault,
+            new SequencedProcessInspector(
+                ProcessInspectionResult.Clear,
+                ProcessInspectionResult.Clear,
+                ProcessInspectionResult.Clear,
+                ProcessInspectionResult.Clear,
+                unsafeInspection));
+
+        var result = await service.SwitchAsync(adapter, targetProfile.ProfileId);
+
+        Assert.Equal(AccountOperationStatus.RecoveryRequired, result.Status);
+        Assert.False(result.RolledBack);
+        Assert.Equal(unsafeInspection, result.ProcessInspection);
+        Assert.Equal(target, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(sourceCapture.Profile!.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
+        var journal = Assert.IsType<SwitchTransactionJournal>(vault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Equal(SwitchJournalPhase.TargetInstalled, journal.Phase);
     }
 
     [Fact]
@@ -298,6 +407,97 @@ public sealed class AccountSwitchServiceTests
         Assert.Equal(RecoveryStatus.CompletedTargetActivation, recovery.Status);
         Assert.Equal(targetProfile.ProfileId, restartedVault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
         Assert.Null(restartedVault.GetPendingJournal(AgentProvider.Codex));
+    }
+
+    [Fact]
+    public async Task InterruptedConfirmedProfileSwitchRecoversExactPreSwitchBytesAndUpdatesSourceSnapshot()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] savedSource = [1, 2, 3, 4];
+        byte[] refreshedSource = [4, 3, 2, 1];
+        byte[] target = [9, 8, 7, 6];
+        File.WriteAllBytes(authenticationPath, savedSource);
+
+        var writer = new CancelAfterPreparedJournalCommitWriter();
+        var vaultPath = System.IO.Path.Combine(temporary.Path, "vault");
+        var vault = new AuthenticationProfileVault(vaultPath, atomicWriter: writer);
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+        var sourceCapture = await service.CaptureCurrentLoginAsync(adapter, "Personal");
+        var targetProfile = vault.CreateProfile(AgentProvider.Codex, "Work", target);
+        File.WriteAllBytes(authenticationPath, refreshedSource);
+        var confirmation = await service.SwitchAsync(adapter, targetProfile.ProfileId);
+        Assert.Equal(AccountOperationStatus.ActiveProfileUpdateConfirmationRequired, confirmation.Status);
+        writer.Enabled = true;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.SwitchAsync(
+                adapter,
+                targetProfile.ProfileId,
+                confirmation.ConfirmationFingerprint));
+
+        Assert.Equal(refreshedSource, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(savedSource, vault.LoadCredential(AgentProvider.Codex, sourceCapture.Profile!.ProfileId));
+        var journal = Assert.IsType<SwitchTransactionJournal>(vault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Equal(SwitchTransactionKind.ProfileSwitch, journal.Kind);
+        Assert.Equal(SwitchJournalPhase.Prepared, journal.Phase);
+        Assert.Single(Directory.GetFiles(vaultPath, "recovery-*.vault", SearchOption.AllDirectories));
+
+        var restartedVault = new AuthenticationProfileVault(vaultPath);
+        var restartedService = CreateService(restartedVault, ProcessInspectionResult.Clear);
+        var recovery = await restartedService.RecoverAsync(adapter);
+
+        Assert.Equal(RecoveryStatus.RecoveredToSource, recovery.Status);
+        Assert.Equal(refreshedSource, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(
+            refreshedSource,
+            restartedVault.LoadCredential(AgentProvider.Codex, sourceCapture.Profile.ProfileId));
+        Assert.Equal(
+            sourceCapture.Profile.ProfileId,
+            restartedVault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
+        Assert.Null(restartedVault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Empty(Directory.GetFiles(vaultPath, "recovery-*.vault", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task PreparedProfileSwitchKeepsEncryptedRecoveryForUnrecognizedLiveAuthentication()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] savedSource = [1, 1, 2, 3];
+        byte[] confirmedPreSwitch = [3, 2, 1, 1];
+        byte[] target = [5, 8, 13, 21];
+        byte[] unrecognizedLive = [34, 55, 89, 144];
+        File.WriteAllBytes(authenticationPath, savedSource);
+        var vault = new AuthenticationProfileVault(System.IO.Path.Combine(temporary.Path, "vault"));
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+        var sourceCapture = await service.CaptureCurrentLoginAsync(adapter, "Personal");
+        var targetProfile = vault.CreateProfile(AgentProvider.Codex, "Work", target);
+        var transactionId = Guid.NewGuid();
+        var journal = new SwitchTransactionJournal
+        {
+            TransactionId = transactionId,
+            Provider = AgentProvider.Codex,
+            Kind = SwitchTransactionKind.ProfileSwitch,
+            SourceProfileId = sourceCapture.Profile!.ProfileId,
+            TargetProfileId = targetProfile.ProfileId,
+            Phase = SwitchJournalPhase.Prepared,
+            StartedAtUtc = DateTimeOffset.UtcNow
+        };
+        vault.WriteTransactionRecoveryCredential(
+            AgentProvider.Codex,
+            transactionId,
+            confirmedPreSwitch);
+        vault.WritePendingJournal(journal);
+        File.WriteAllBytes(authenticationPath, unrecognizedLive);
+
+        var recovery = await service.RecoverAsync(adapter);
+
+        Assert.Equal(RecoveryStatus.ManualInterventionRequired, recovery.Status);
+        Assert.Equal(unrecognizedLive, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(savedSource, vault.LoadCredential(AgentProvider.Codex, sourceCapture.Profile.ProfileId));
+        Assert.Equal(journal, vault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Single(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
     }
 
     [Fact]
@@ -368,7 +568,7 @@ public sealed class AccountSwitchServiceTests
     }
 
     [Fact]
-    public async Task RecoveryRestoresSourceWhenAuthenticationFileIsMissingAndDeletesOwnedTransactionFiles()
+    public async Task LegacyPreparedProfileSwitchWithoutRecoveryBlobRestoresMissingAuthenticationFile()
     {
         using var temporary = new TemporaryDirectory();
         var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
@@ -399,6 +599,7 @@ public sealed class AccountSwitchServiceTests
             $".coding-agent-account-switcher.{System.IO.Path.GetFileName(authenticationPath)}.{transactionId:N}.backup");
         File.WriteAllBytes(temporaryPath, target);
         File.WriteAllBytes(backupPath, source);
+        Assert.Empty(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
 
         var result = await service.RecoverAsync(adapter);
 
@@ -408,6 +609,7 @@ public sealed class AccountSwitchServiceTests
         Assert.False(File.Exists(backupPath));
         Assert.Equal(sourceCapture.Profile.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
         Assert.Null(vault.GetPendingJournal(AgentProvider.Codex));
+        Assert.Empty(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
     }
 
     [Fact]
@@ -570,6 +772,57 @@ public sealed class AccountSwitchServiceTests
         Assert.Empty(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
     }
 
+    [Theory]
+    [InlineData(ProcessInspectionStatus.Running, AccountOperationStatus.BlockedByRunningProcesses)]
+    [InlineData(ProcessInspectionStatus.Unknown, AccountOperationStatus.ProcessInspectionUnknown)]
+    public async Task UnsafeCommitCheckDoesNotUpdateConfirmedSourceSnapshot(
+        ProcessInspectionStatus inspectionStatus,
+        AccountOperationStatus expectedStatus)
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] savedSource = [1, 2, 3, 4];
+        byte[] refreshedSource = [4, 3, 2, 1];
+        byte[] target = [9, 8, 7, 6];
+        File.WriteAllBytes(authenticationPath, savedSource);
+        var vault = new AuthenticationProfileVault(System.IO.Path.Combine(temporary.Path, "vault"));
+        var clearService = CreateService(vault, ProcessInspectionResult.Clear);
+        var sourceCapture = await clearService.CaptureCurrentLoginAsync(adapter, "Personal");
+        var targetProfile = vault.CreateProfile(AgentProvider.Codex, "Work", target);
+        File.WriteAllBytes(authenticationPath, refreshedSource);
+        var confirmation = await clearService.SwitchAsync(adapter, targetProfile.ProfileId);
+        Assert.Equal(AccountOperationStatus.ActiveProfileUpdateConfirmationRequired, confirmation.Status);
+
+        var unsafeInspection = new ProcessInspectionResult
+        {
+            Status = inspectionStatus,
+            Processes = inspectionStatus == ProcessInspectionStatus.Running
+                ? [new DetectedProcess(100, "codex")]
+                : [],
+            Issues = inspectionStatus == ProcessInspectionStatus.Unknown
+                ? [new ProcessInspectionIssue("codex", "Synthetic inspection failure")]
+                : []
+        };
+        var service = CreateService(
+            vault,
+            new SequencedProcessInspector(
+                ProcessInspectionResult.Clear,
+                ProcessInspectionResult.Clear,
+                ProcessInspectionResult.Clear,
+                unsafeInspection));
+
+        var result = await service.SwitchAsync(
+            adapter,
+            targetProfile.ProfileId,
+            confirmation.ConfirmationFingerprint);
+
+        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal(refreshedSource, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(savedSource, vault.LoadCredential(AgentProvider.Codex, sourceCapture.Profile!.ProfileId));
+        Assert.Equal(sourceCapture.Profile.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
+        Assert.Null(vault.GetPendingJournal(AgentProvider.Codex));
+    }
+
     private static CodexAuthenticationAdapter CreateCodexAdapter(
         string root,
         out string authenticationPath,
@@ -705,6 +958,28 @@ public sealed class AccountSwitchServiceTests
             }
 
             _inner.WriteAllBytes(destinationPath, contents, transactionId);
+        }
+
+        public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
+            _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+    }
+
+    private sealed class CancelAfterPreparedJournalCommitWriter : IAtomicFileWriter
+    {
+        private readonly AtomicFileWriter _inner = new();
+        private bool _hasCancelled;
+
+        public bool Enabled { get; set; }
+
+        public void WriteAllBytes(string destinationPath, byte[] contents, Guid? transactionId = null)
+        {
+            _inner.WriteAllBytes(destinationPath, contents, transactionId);
+            if (Enabled && !_hasCancelled &&
+                System.IO.Path.GetFileName(destinationPath).StartsWith("journal-", StringComparison.Ordinal))
+            {
+                _hasCancelled = true;
+                throw new OperationCanceledException("Injected interruption after the prepared journal commit.");
+            }
         }
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>

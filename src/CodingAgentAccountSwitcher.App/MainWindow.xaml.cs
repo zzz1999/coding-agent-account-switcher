@@ -13,6 +13,8 @@ namespace CodingAgentAccountSwitcher.App;
 
 public partial class MainWindow : Window
 {
+    private const string ProfilesHiddenNoticeKey = "Status.ProfilesHidden";
+
     private readonly LocalizationService _localization;
     private readonly ApplicationSettingsService _settingsService;
     private readonly StartupRegistrationService _startupRegistration;
@@ -23,6 +25,7 @@ public partial class MainWindow : Window
     private AgentProvider _selectedProvider = AgentProvider.Codex;
     private PendingAccountOperation? _pendingOperation;
     private Guid? _confirmedReplacementProfileId;
+    private IInputElement? _dialogReturnFocus;
     private bool _isBusy;
     private bool _isDarkTheme;
     private bool _suppressSettingsEvents;
@@ -217,7 +220,9 @@ public partial class MainWindow : Window
         {
             var vault = _contexts[provider].Vault;
             var activeProfile = vault.GetActiveProfile(provider);
-            _visibleAccounts = vault.ListProfiles(provider)
+            var profileList = vault.ListProfilesWithIssues(provider);
+            UpdateProfileLoadNotice(provider, profileList.Issues.Count);
+            _visibleAccounts = profileList.Profiles
                 .Select(profile => new AccountCardViewModel(
                     profile.ProfileId,
                     profile.DisplayName,
@@ -233,14 +238,22 @@ public partial class MainWindow : Window
                 : Visibility.Collapsed;
             if (_visibleAccounts.Count == 0)
             {
-                var authenticationFileExists = System.IO.File.Exists(
-                    _contexts[provider].Adapter.AuthenticationFilePath);
-                EmptyStateTitle.Text = authenticationFileExists
-                    ? T("Empty.LoginDetected.Title")
-                    : T("Empty.NoLogin.Title");
-                EmptyStateMessage.Text = authenticationFileExists
-                    ? T("Empty.LoginDetected.Message")
-                    : T("Empty.NoLogin.Message");
+                if (profileList.Issues.Count > 0)
+                {
+                    EmptyStateTitle.Text = T("Empty.Unavailable.Title");
+                    EmptyStateMessage.Text = T("Empty.Unavailable.Message");
+                }
+                else
+                {
+                    var authenticationFileExists = System.IO.File.Exists(
+                        _contexts[provider].Adapter.AuthenticationFilePath);
+                    EmptyStateTitle.Text = authenticationFileExists
+                        ? T("Empty.LoginDetected.Title")
+                        : T("Empty.NoLogin.Title");
+                    EmptyStateMessage.Text = authenticationFileExists
+                        ? T("Empty.LoginDetected.Message")
+                        : T("Empty.NoLogin.Message");
+                }
             }
 
             return true;
@@ -254,6 +267,29 @@ public partial class MainWindow : Window
             EmptyStateMessage.Text = T("Empty.Unavailable.Message");
             SetStatus(T("Status.ProfilesLoadFailed", exception.Message), StatusTone.Error);
             return false;
+        }
+    }
+
+    private void UpdateProfileLoadNotice(AgentProvider provider, int hiddenProfileCount)
+    {
+        if (hiddenProfileCount > 0)
+        {
+            if (!_providerNotices.TryGetValue(provider, out var existingNotice) ||
+                existingNotice.ResourceKey == ProfilesHiddenNoticeKey)
+            {
+                _providerNotices[provider] = new ProviderNotice(
+                    ProfilesHiddenNoticeKey,
+                    [hiddenProfileCount],
+                    StatusTone.Warning);
+            }
+
+            return;
+        }
+
+        if (_providerNotices.TryGetValue(provider, out var notice) &&
+            notice.ResourceKey == ProfilesHiddenNoticeKey)
+        {
+            _providerNotices.Remove(provider);
         }
     }
 
@@ -288,6 +324,7 @@ public partial class MainWindow : Window
         ConfirmSaveProfileButton.Content = T("Save.Snapshot");
         ProfileNameTextBox.Text = suggestedName;
         ProfileNameValidationText.Visibility = Visibility.Collapsed;
+        RememberDialogFocusIfOpening(SaveProfileDialogOverlay);
         SaveProfileDialogOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() =>
         {
@@ -320,7 +357,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        SaveProfileDialogOverlay.Visibility = Visibility.Collapsed;
+        CloseSaveProfileDialog();
         await AttemptCaptureAsync(
             _selectedProvider,
             existingProfile?.Name ?? displayName,
@@ -378,11 +415,16 @@ public partial class MainWindow : Window
 
     private void CloseSaveProfileDialog()
     {
+        var wasVisible = SaveProfileDialogOverlay.Visibility == Visibility.Visible;
         SaveProfileDialogOverlay.Visibility = Visibility.Collapsed;
         ProfileNameValidationText.Visibility = Visibility.Collapsed;
         ProfileNameTextBox.Clear();
         _confirmedReplacementProfileId = null;
         ConfirmSaveProfileButton.Content = T("Save.Snapshot");
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
     }
 
     private async Task AttemptCaptureAsync(
@@ -662,6 +704,7 @@ public partial class MainWindow : Window
                 StatusTone.Warning);
         }
 
+        RememberDialogFocusIfOpening(ChangedLoginDialogOverlay);
         ChangedLoginDialogOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => Keyboard.Focus(ConfirmChangedLoginButton));
     }
@@ -696,6 +739,7 @@ public partial class MainWindow : Window
 
     private void CloseChangedLoginDialog(bool clearPendingOperation = true)
     {
+        var wasVisible = ChangedLoginDialogOverlay.Visibility == Visibility.Visible;
         ChangedLoginDialogOverlay.Visibility = Visibility.Collapsed;
         ChangedLoginDialogMessage.Text = string.Empty;
         ChangedLoginSafetyText.Text = string.Empty;
@@ -703,10 +747,19 @@ public partial class MainWindow : Window
         {
             _pendingOperation = null;
         }
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
     }
 
     private void CancelProcessDialog_Click(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         CloseProcessDialog();
         SetStatus(T("Status.OperationCancelled"), StatusTone.Ready);
     }
@@ -736,6 +789,7 @@ public partial class MainWindow : Window
         }
 
         BlockingProcessItems.ItemsSource = rows;
+        RememberDialogFocusIfOpening(ProcessDialogOverlay);
         ProcessDialogOverlay.Visibility = Visibility.Visible;
         SetStatus(T("Status.ProcessBlocked"), StatusTone.Warning);
         Dispatcher.BeginInvoke(() => Keyboard.Focus(RecheckButton));
@@ -743,9 +797,14 @@ public partial class MainWindow : Window
 
     private void CloseProcessDialog()
     {
+        var wasVisible = ProcessDialogOverlay.Visibility == Visibility.Visible;
         ProcessDialogOverlay.Visibility = Visibility.Collapsed;
         BlockingProcessItems.ItemsSource = null;
         _pendingOperation = null;
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
     }
 
     private void SetBusy(bool isBusy)
@@ -756,6 +815,7 @@ public partial class MainWindow : Window
         SettingsButton.IsEnabled = !isBusy;
         AccountItems.IsEnabled = !isBusy;
         RecheckButton.IsEnabled = !isBusy;
+        CancelProcessDialogButton.IsEnabled = !isBusy;
         ConfirmSaveProfileButton.IsEnabled = !isBusy;
         ConfirmChangedLoginButton.IsEnabled = !isBusy;
         LanguageComboBox.IsEnabled = !isBusy;
@@ -791,7 +851,8 @@ public partial class MainWindow : Window
                 UriKind.Relative),
         };
 
-        ThemeButton.Content = _isDarkTheme ? "☼" : "☾";
+        ThemeMoonIcon.Visibility = _isDarkTheme ? Visibility.Collapsed : Visibility.Visible;
+        ThemeSunIcon.Visibility = _isDarkTheme ? Visibility.Visible : Visibility.Collapsed;
         SetStatus(T(_isDarkTheme ? "Status.DarkTheme" : "Status.LightTheme"), StatusTone.Ready);
     }
 
@@ -826,6 +887,7 @@ public partial class MainWindow : Window
             _suppressSettingsEvents = false;
         }
 
+        RememberDialogFocusIfOpening(SettingsDialogOverlay);
         SettingsDialogOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => Keyboard.Focus(LanguageComboBox));
     }
@@ -942,9 +1004,54 @@ public partial class MainWindow : Window
 
     private void CloseSettingsDialog_Click(object sender, RoutedEventArgs e)
     {
+        var wasVisible = SettingsDialogOverlay.Visibility == Visibility.Visible;
         SettingsDialogOverlay.Visibility = Visibility.Collapsed;
         SettingsErrorText.Visibility = Visibility.Collapsed;
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
     }
+
+    private void RememberDialogFocus() => _dialogReturnFocus = Keyboard.FocusedElement;
+
+    private void RememberDialogFocusIfOpening(UIElement overlay)
+    {
+        if (ShouldRememberDialogFocus(overlay.Visibility) && !IsAnyDialogVisible())
+        {
+            RememberDialogFocus();
+        }
+
+        // The overlays are visual siblings of the shell. Disabling only the shell
+        // keeps the active dialog operable while preventing hidden controls from
+        // being invoked through keyboard navigation or UI Automation.
+        MainShell.IsEnabled = false;
+    }
+
+    internal static bool ShouldRememberDialogFocus(Visibility currentVisibility) =>
+        currentVisibility != Visibility.Visible;
+
+    private void RestoreDialogFocus()
+    {
+        if (IsAnyDialogVisible())
+        {
+            return;
+        }
+
+        MainShell.IsEnabled = true;
+        var returnFocus = _dialogReturnFocus;
+        _dialogReturnFocus = null;
+        if (returnFocus is UIElement { IsVisible: true, IsEnabled: true } element)
+        {
+            Keyboard.Focus(element);
+        }
+    }
+
+    private bool IsAnyDialogVisible() =>
+        ProcessDialogOverlay.Visibility == Visibility.Visible ||
+        SaveProfileDialogOverlay.Visibility == Visibility.Visible ||
+        SettingsDialogOverlay.Visibility == Visibility.Visible ||
+        ChangedLoginDialogOverlay.Visibility == Visibility.Visible;
 
     private void ShowSettingsError(string message)
     {
@@ -1023,10 +1130,12 @@ public partial class MainWindow : Window
     {
         if (MaximizeButton is not null)
         {
-            MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+            var isMaximized = WindowState == WindowState.Maximized;
+            MaximizeIcon.Visibility = isMaximized ? Visibility.Collapsed : Visibility.Visible;
+            RestoreIcon.Visibility = isMaximized ? Visibility.Visible : Visibility.Collapsed;
             AutomationProperties.SetName(
                 MaximizeButton,
-                T(WindowState == WindowState.Maximized ? "Window.Restore" : "Window.Maximize"));
+                T(isMaximized ? "Window.Restore" : "Window.Maximize"));
         }
     }
 
@@ -1034,6 +1143,16 @@ public partial class MainWindow : Window
     {
         if (e.Key != Key.Escape)
         {
+            return;
+        }
+
+        // Window preview handlers run before the ComboBox can consume Escape.
+        // Preserve the standard keyboard contract by closing its popup first.
+        if (SettingsDialogOverlay.Visibility == Visibility.Visible &&
+            LanguageComboBox.IsDropDownOpen)
+        {
+            LanguageComboBox.IsDropDownOpen = false;
+            e.Handled = true;
             return;
         }
 

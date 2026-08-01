@@ -180,6 +180,7 @@ internal static partial class LocalizationCatalog
             ["Recovery.StartupFailed"] = "Startup recovery failed: {0}",
             ["Status.ReadyProvider"] = "Ready to switch {0} accounts.",
             ["Status.ProfilesLoadFailed"] = "Saved profiles could not be loaded: {0}",
+            ["Status.ProfilesHidden"] = "Saved profiles hidden because they could not be loaded: {0}.",
             ["Status.CheckingSave"] = "Checking processes and saving securely. Keep {0} closed until this finishes…",
             ["Status.SaveException"] = "The login could not be saved: {0}",
             ["Status.ProfileCaptured"] = "{0} {1} as an encrypted {2} profile.",

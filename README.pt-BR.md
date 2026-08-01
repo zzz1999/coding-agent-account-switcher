@@ -16,8 +16,8 @@ A descrição “inspirado no iOS 18” se refere apenas à direção visual ger
 Baixe a build atual na [release latest](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
 
 - **Instalador recomendado:** `coding-agent-account-switcher-setup-win-x64.exe` instala para o usuário atual do Windows sem privilégios de administrador e cria entradas no menu Iniciar e de desinstalação.
-- **Pacote portátil:** `coding-agent-account-switcher-win-x64.zip` pode ser extraído e executado sem instalação.
-- A release inclui um arquivo de soma SHA-256 correspondente para cada pacote.
+- **Executável portátil:** baixe `coding-agent-account-switcher-portable-win-x64.exe` e execute-o diretamente, sem necessidade de instalação.
+- A release inclui um arquivo de soma SHA-256 correspondente para cada executável.
 
 O instalador não ativa automaticamente **Iniciar com o Windows** e não altera arquivos de autenticação ou configuração do Codex ou Claude Code. A desinstalação preserva os snapshots de contas criptografados e as configurações do aplicativo para que continuem disponíveis após uma reinstalação. O instalador e o executável portátil não são assinados no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação.
 
@@ -60,11 +60,13 @@ Consulte a documentação oficial de [autenticação do Codex](https://developer
 3. Salve o login atual com um nome escolhido por você, como `Personal`.
 4. Entre na segunda conta e salve-a com outro nome, como `Work`.
 5. Selecione um perfil salvo. O aplicativo verifica os processos relacionados antes de qualquer alteração. Se um estiver em execução, a alternância é bloqueada e nenhum arquivo de credenciais é modificado.
-6. Ao mudar para outro perfil, o arquivo de autenticação atual é salvo no último perfil criptografado selecionado depois de uma confirmação vinculada aos bytes, preservando os tokens atualizados.
+6. Ao mudar para outro perfil, o arquivo de autenticação atual é salvo no último perfil criptografado selecionado depois de uma confirmação vinculada aos bytes, preservando os tokens atualizados. Antes que o diário se torne persistente, esses bytes exatos confirmados anteriores à alternância também são preservados em um bloco de recuperação exclusivo da transação e criptografado por DPAPI.
 
 O aplicativo marca esse perfil como **Último selecionado**, e não “atual verificado”. Se o arquivo ativo não corresponder mais ao instantâneo salvo, a alternância será pausada antes de qualquer gravação. Confirme apenas se a mudança for uma atualização da mesma conta. Se você entrou em outra conta fora do aplicativo, escolha primeiro **Salvar como novo** (ou substitua explicitamente o perfil existente com o nome correto).
 
 O botão **Restaurar instantâneo** no cartão do último perfil selecionado verifica se o arquivo ativo ainda corresponde ao instantâneo salvo. Se for diferente, o aplicativo avisa que o login atual não salvo será substituído e vincula a aprovação àqueles bytes exatos. Outro login ativo não pode reutilizar uma confirmação anterior. Durante a restauração, uma credencial de recuperação exclusiva da transação e criptografada por DPAPI preserva os bytes anteriores até a operação ser confirmada ou revertida.
+
+As alternâncias comuns de perfil usam a mesma evidência de recuperação criptografada quando o login ativo confirmado difere de seu instantâneo de origem salvo. Após uma interrupção, a recuperação prioriza esses bytes exatos anteriores à alternância e sincroniza o instantâneo de origem se os restaurar. Diários antigos sem um bloco de recuperação continuam compatíveis, recorrendo ao instantâneo de origem salvo. Se o arquivo ativo não corresponder nem à origem preservada nem ao destino, o diário e o bloco de recuperação criptografado permanecem disponíveis para recuperação manual.
 
 O aplicativo não promete login permanente. Revogação pelo provedor, política da organização, SSO, MFA ou expiração de token ainda podem exigir um login normal pelo cliente oficial.
 
@@ -80,7 +82,7 @@ Abra **Configurações** na janela do aplicativo para escolher o idioma de exibi
 - Cada local normalizado do arquivo de autenticação possui um cofre, estado ativo, diário de recuperação e mutex próprios, isolados por hash. Alterar `CODEX_HOME` ou `CLAUDE_CONFIG_DIR` inicia, portanto, um conjunto independente de perfis, em vez de reutilizar a conta ativa de outro local.
 - O DPAPI `CurrentUser` impede que outra conta do Windows descriptografe diretamente o perfil, mas não protege contra software malicioso já executado como o mesmo usuário do Windows.
 - Além do arquivo normal de autenticação ativa do provedor, os bytes descriptografados do instantâneo existem apenas por pouco tempo na memória e na substituição atômica do mesmo diretório durante a captura ou alternância.
-- Os arquivos temporários e de backup da substituição de autenticação usam o ID da transação de recuperação. A conclusão normal remove os dois arquivos exatos. Depois de uma interrupção, a recuperação restaura um arquivo ativo ausente a partir do instantâneo de origem criptografado ou da credencial de recuperação exclusiva da transação, remove todos os arquivos de preparação que pertencem exatamente à transação e então exclui o diário.
+- Os arquivos temporários e de backup da substituição de autenticação usam o ID da transação de recuperação. A conclusão normal remove os dois arquivos exatos. Depois de uma interrupção, a recuperação restaura um arquivo ativo ausente a partir do instantâneo de origem criptografado ou da credencial de recuperação exclusiva da transação, remove todos os arquivos de preparação que pertencem exatamente à transação e então exclui o diário. O bloco de recuperação criptografado só é excluído depois do diário, em caráter de melhor esforço.
 - O aplicativo não envia credenciais, que nunca devem ser incluídas em logs, issues, relatórios de falha, dados de teste ou commits do repositório.
 - A detecção de processos é defensiva e de melhor esforço. Um processo recém-iniciado pode competir com a alternância; não inicie o Codex ou o Claude Code até a operação terminar.
 - Se uma conta profissional for gerenciada por uma organização, obtenha aprovação antes de manter outro instantâneo local criptografado de autenticação.
@@ -117,13 +119,13 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 1. Restaura e testa a solução.
 2. Publica uma build portátil e autossuficiente para Windows x64.
 3. Cria o instalador Windows x64 por usuário.
-4. Cria o ZIP portátil e as somas SHA-256 dos dois pacotes.
+4. Prepara o executável portátil e as somas SHA-256 dos dois executáveis.
 5. Exclui somente a release e a tag anteriores chamadas `latest`.
-6. Publica uma nova release `latest` com o instalador, o pacote portátil e as somas para o commit atual.
+6. Publica uma nova release `latest` com o instalador, o executável portátil e as somas para o commit atual.
 
 Releases versionadas nunca são excluídas por esse fluxo. A opção **immutable releases** do GitHub deve permanecer desativada para a tag contínua `latest`, e as regras de branch ou tag devem permitir que o fluxo exclua `latest`. Repositórios que exigem releases imutáveis devem usar tags de build exclusivas.
 
-O instalador e o executável portátil contínuos não são assinados no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação. Revise o código-fonte e verifique a soma SHA-256 publicada correspondente antes de executar qualquer pacote.
+O instalador e o executável portátil contínuos não são assinados no momento, portanto o Windows SmartScreen pode exibir um alerta de reputação. Revise o código-fonte e verifique a soma SHA-256 publicada correspondente antes de executar qualquer executável.
 
 ## Como contribuir
 

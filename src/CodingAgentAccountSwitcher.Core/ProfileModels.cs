@@ -19,6 +19,22 @@ public sealed record AuthenticationProfileMetadata
     public DateTimeOffset? LastActivatedAtUtc { get; init; }
 }
 
+public sealed record AuthenticationProfileLoadIssue
+{
+    public required string FileName { get; init; }
+
+    public required string Message { get; init; }
+}
+
+public sealed record AuthenticationProfileListResult
+{
+    public IReadOnlyList<AuthenticationProfileMetadata> Profiles { get; init; } =
+        Array.Empty<AuthenticationProfileMetadata>();
+
+    public IReadOnlyList<AuthenticationProfileLoadIssue> Issues { get; init; } =
+        Array.Empty<AuthenticationProfileLoadIssue>();
+}
+
 public sealed record ActiveProfileState
 {
     public const int CurrentSchemaVersion = 1;

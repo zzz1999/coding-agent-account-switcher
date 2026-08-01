@@ -16,8 +16,8 @@ Coding Agent Account Switcher speichert benannte, verschlüsselte Momentaufnahme
 Laden Sie den aktuellen Build aus dem [latest-Release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest) herunter:
 
 - **Empfohlenes Installationsprogramm:** `coding-agent-account-switcher-setup-win-x64.exe` installiert die Anwendung ohne Administratorrechte für den aktuellen Windows-Benutzer und erstellt Einträge im Startmenü und zur Deinstallation.
-- **Portable Version:** `coding-agent-account-switcher-win-x64.zip` kann ohne Installation entpackt und ausgeführt werden.
-- Das Release enthält für jedes Paket eine passende SHA-256-Prüfsummendatei.
+- **Portable ausführbare Datei:** `coding-agent-account-switcher-portable-win-x64.exe` direkt herunterladen und ohne Installation ausführen.
+- Das Release enthält für jede ausführbare Datei eine passende SHA-256-Prüfsummendatei.
 
 Das Installationsprogramm aktiviert **Mit Windows starten** nicht automatisch und verändert keine Authentifizierungs- oder Konfigurationsdateien von Codex oder Claude Code. Bei der Deinstallation bleiben verschlüsselte Kontoschnappschüsse und Anwendungseinstellungen erhalten, sodass sie nach einer Neuinstallation weiterhin verfügbar sind. Das Installationsprogramm und die portable ausführbare Datei sind derzeit nicht signiert; Windows SmartScreen kann deshalb eine Reputationswarnung anzeigen.
 
@@ -60,11 +60,13 @@ Die aktuellen Speicherverträge sind in der offiziellen Dokumentation zur [Codex
 3. Speichern Sie die aktuelle Anmeldung unter einem selbst gewählten Namen wie `Personal`.
 4. Melden Sie sich beim zweiten Konto an und speichern Sie es unter einem anderen Namen wie `Work`.
 5. Wählen Sie ein gespeichertes Profil aus. Vor jeder Änderung prüft die App auf zugehörige Prozesse. Läuft einer davon, wird der Wechsel blockiert und keine Anmeldedatei verändert.
-6. Beim Wechsel zu einem anderen Profil wird die aktuelle Authentifizierungsdatei nach einer bytegebundenen Bestätigung in das zuletzt gewählte verschlüsselte Profil zurückgespeichert, sodass aktualisierte Tokens erhalten bleiben.
+6. Beim Wechsel zu einem anderen Profil wird die aktuelle Authentifizierungsdatei nach einer bytegebundenen Bestätigung in das zuletzt gewählte verschlüsselte Profil zurückgespeichert, sodass aktualisierte Tokens erhalten bleiben. Bevor das Journal dauerhaft geschrieben wird, werden diese exakt bestätigten Bytes vor dem Wechsel außerdem in einem ausschließlich für diese Transaktion bestimmten, DPAPI-verschlüsselten Wiederherstellungsblob gesichert.
 
 Die App bezeichnet dieses Profil als **Zuletzt gewählt**, nicht als „verifiziert aktuell“. Stimmt die aktive Datei nicht mehr mit der gespeicherten Momentaufnahme überein, wird der Wechsel vor jedem Schreibvorgang angehalten. Bestätigen Sie nur, wenn es sich um eine Aktualisierung desselben Kontos handelt. Haben Sie sich außerhalb der App bei einem anderen Konto angemeldet, wählen Sie zuerst **Als neu speichern** (oder ersetzen Sie ausdrücklich das vorhandene Profil mit dem richtigen Namen).
 
 Die Schaltfläche **Momentaufnahme wiederherstellen** auf der Karte des zuletzt gewählten Profils prüft, ob die aktive Datei noch mit der Momentaufnahme übereinstimmt. Bei einer Abweichung warnt die App, dass die aktuelle ungespeicherte Anmeldung ersetzt wird, und bindet die Zustimmung an genau diese Bytes. Eine andere aktive Anmeldung kann eine frühere Bestätigung nicht wiederverwenden. Während der Wiederherstellung bewahrt ein transaktionsgebundener, DPAPI-verschlüsselter Wiederherstellungsnachweis die vorherigen Bytes auf, bis der Vorgang abgeschlossen oder zurückgesetzt wird.
+
+Normale Profilwechsel verwenden denselben verschlüsselten Wiederherstellungsnachweis, wenn die bestätigte aktive Anmeldung von ihrer gespeicherten Quell-Momentaufnahme abweicht. Nach einer Unterbrechung bevorzugt die Wiederherstellung genau diese Bytes vor dem Wechsel und synchronisiert die Quell-Momentaufnahme, wenn sie daraus wiederherstellt. Ältere Journale ohne Wiederherstellungsblob bleiben kompatibel, indem sie auf die gespeicherte Quell-Momentaufnahme zurückgreifen. Stimmt die aktive Datei weder mit der gesicherten Quelle noch mit dem Ziel überein, bleiben Journal und verschlüsselter Wiederherstellungsblob für eine manuelle Wiederherstellung erhalten.
 
 Die App verspricht keine dauerhafte Anmeldung. Anbieterseitiger Widerruf, Organisationsrichtlinien, SSO, MFA oder Token-Ablauf können weiterhin eine normale Anmeldung im offiziellen Client erfordern.
 
@@ -80,7 +82,7 @@ Die App verspricht keine dauerhafte Anmeldung. Anbieterseitiger Widerruf, Organi
 - Jeder normalisierte Speicherort einer Authentifizierungsdatei besitzt einen eigenen, per Hash abgegrenzten Tresor, aktiven Zustand, Wiederherstellungsjournal und Vorgangsmutex. Eine Änderung von `CODEX_HOME` oder `CLAUDE_CONFIG_DIR` erzeugt daher einen unabhängigen Profilsatz, statt das aktive Konto eines anderen Speicherorts zu verwenden.
 - DPAPI `CurrentUser` verhindert, dass ein anderes Windows-Konto das Profil direkt entschlüsselt. Es schützt jedoch nicht vor Schadsoftware, die bereits als derselbe Windows-Benutzer ausgeführt wird.
 - Abgesehen von der normalen aktiven Authentifizierungsdatei des Anbieters existieren entschlüsselte Momentaufnahme-Bytes während Erfassung oder Wechsel nur kurz im Arbeitsspeicher und im atomaren Austausch im selben Verzeichnis.
-- Temporär- und Sicherungsdateien des Authentifizierungsaustauschs verwenden die ID der Wiederherstellungstransaktion. Bei normalem Abschluss werden beide exakten Dateien gelöscht. Nach einer Unterbrechung stellt die Wiederherstellung eine fehlende aktive Datei aus der verschlüsselten Quell-Momentaufnahme oder dem transaktionsgebundenen Wiederherstellungsnachweis wieder her, entfernt anschließend alle exakt dieser Transaktion gehörenden Staging-Dateien und löscht erst danach das Journal.
+- Temporär- und Sicherungsdateien des Authentifizierungsaustauschs verwenden die ID der Wiederherstellungstransaktion. Bei normalem Abschluss werden beide exakten Dateien gelöscht. Nach einer Unterbrechung stellt die Wiederherstellung eine fehlende aktive Datei aus der verschlüsselten Quell-Momentaufnahme oder dem transaktionsgebundenen Wiederherstellungsnachweis wieder her, entfernt anschließend alle exakt dieser Transaktion gehörenden Staging-Dateien und löscht erst danach das Journal. Der verschlüsselte Wiederherstellungsblob wird erst nach dem Journal und nach bestem Bemühen gelöscht.
 - Die Anwendung lädt keine Anmeldedaten hoch. Sie dürfen niemals in Protokollen, Issues, Absturzberichten, Testdaten oder Repository-Commits enthalten sein.
 - Die Prozesserkennung ist eine defensive Best-Effort-Maßnahme. Ein neu gestarteter Prozess kann mit einem Wechsel konkurrieren; starten Sie Codex oder Claude Code deshalb erst nach Abschluss des Vorgangs.
 - Wird ein Geschäftskonto von einer Organisation verwaltet, holen Sie deren Zustimmung ein, bevor Sie eine zusätzliche verschlüsselte lokale Authentifizierungs-Momentaufnahme aufbewahren.
@@ -117,9 +119,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 1. Solution wiederherstellen und testen.
 2. Eigenständigen portablen Windows-x64-Build veröffentlichen.
 3. Das benutzerspezifische Windows-x64-Installationsprogramm erstellen.
-4. Das portable ZIP und SHA-256-Prüfsummen für beide Pakete erstellen.
+4. Die portable ausführbare Datei und SHA-256-Prüfsummen für beide ausführbaren Dateien vorbereiten.
 5. Ausschließlich das vorherige Release und Tag namens `latest` löschen.
-6. Ein neues `latest`-Release mit Installationsprogramm, portablem Paket und Prüfsummen für den aktuellen Commit veröffentlichen.
+6. Ein neues `latest`-Release mit Installationsprogramm, portabler ausführbarer Datei und Prüfsummen für den aktuellen Commit veröffentlichen.
 
 Versionierte Releases werden von diesem Workflow nie gelöscht. GitHubs Option **immutable releases** muss für das fortlaufende `latest`-Tag deaktiviert bleiben, und Branch- oder Tag-Regeln müssen dem Workflow erlauben, `latest` zu löschen. Repositorys, die unveränderliche Releases verlangen, sollten den Workflow auf eindeutige Build-Tags umstellen.
 

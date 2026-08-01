@@ -25,9 +25,10 @@ Download the current build from the [latest release](https://github.com/zzz1999/
 - **Recommended installer:** `coding-agent-account-switcher-setup-win-x64.exe`
   installs for the current Windows user without administrator privileges and
   creates Start menu and uninstall entries.
-- **Portable package:** `coding-agent-account-switcher-win-x64.zip` can be
-  extracted and run without installation.
-- Each package includes a matching SHA-256 checksum file in the release.
+- **Portable executable:** download
+  `coding-agent-account-switcher-portable-win-x64.exe` and run it directly;
+  no installation is required.
+- Each executable has a matching SHA-256 checksum file in the release.
 
 The installer does not enable **Start with Windows** automatically and does not
 touch Codex or Claude Code authentication or configuration files. Uninstalling
@@ -91,7 +92,9 @@ for the current storage contracts.
    is modified.
 6. When switching to a different profile, the current authentication file is
    saved back to the last selected encrypted profile after a byte-bound
-   confirmation, so refreshed tokens are retained.
+   confirmation, so refreshed tokens are retained. Before the journal becomes
+   durable, those exact confirmed pre-switch bytes are also preserved in a
+   transaction-only DPAPI-encrypted recovery blob.
 
 The app labels this profile **Last selected**, not "verified current." If the
 live file no longer matches its saved snapshot, the switch pauses before any
@@ -105,6 +108,14 @@ the current unsaved login will be replaced and binds approval to those exact
 bytes. A different live login cannot reuse an earlier confirmation. During the
 restore, a transaction-only DPAPI-encrypted recovery credential preserves the
 pre-restore bytes until the operation commits or rolls back.
+
+Ordinary profile switches use the same encrypted recovery evidence when the
+confirmed live login differs from its saved source snapshot. After an
+interruption, recovery prefers those exact pre-switch bytes and synchronizes the
+source snapshot if it restores them. Older journals without a recovery blob
+remain compatible by falling back to the saved source snapshot. If the live file
+matches neither the preserved source nor the target, the journal and encrypted
+recovery blob remain available for manual recovery.
 
 The application never promises permanent login. Provider-side revocation,
 organization policy, SSO, MFA, or token expiry can still require a normal
@@ -139,7 +150,8 @@ Switcher; it does not alter other startup applications.
   transaction ID. Normal completion removes both exact files. After an
   interruption, recovery restores a missing live file from an encrypted source
   snapshot or transaction-only recovery credential, then removes all exact
-  transaction-owned staging files before deleting the journal.
+  transaction-owned staging files before deleting the journal. The encrypted
+  recovery blob is deleted only after the journal, on a best-effort basis.
 - The application does not upload credentials and must never include them in a
   log, issue, crash report, test fixture, or repository commit.
 - Process detection is defensive and best-effort. A newly started process can
@@ -181,9 +193,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 1. Restore and test the solution.
 2. Publish a self-contained portable Windows x64 build.
 3. Build the per-user Windows x64 installer.
-4. Create the portable ZIP and SHA-256 checksums for both packages.
+4. Prepare the portable executable and SHA-256 checksums for both executables.
 5. Delete only the previous release and tag named `latest`.
-6. Publish a new `latest` release with the installer, portable package, and
+6. Publish a new `latest` release with the installer, portable executable, and
    checksums for the current commit.
 
 Versioned releases are never deleted by this workflow. GitHub's **immutable
@@ -193,7 +205,7 @@ require immutable releases should change the workflow to unique build tags.
 
 The rolling installer and portable executable are currently unsigned, so
 Windows SmartScreen may show a reputation warning. Review the source and verify
-the appropriate published SHA-256 checksum before running either package.
+the appropriate published SHA-256 checksum before running either executable.
 
 ## Contributing
 

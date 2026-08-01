@@ -17,11 +17,13 @@ public sealed class DpapiCurrentUserProtectorTests
         byte[] entropy = [1, 2, 3, 4];
         byte[] wrongEntropy = [4, 3, 2, 1];
         var protectedBytes = protector.Protect(plaintext, entropy);
+        byte[]? unprotectedBytes = null;
 
         try
         {
             Assert.NotEqual(plaintext, protectedBytes);
-            Assert.Equal(plaintext, protector.Unprotect(protectedBytes, entropy));
+            unprotectedBytes = protector.Unprotect(protectedBytes, entropy);
+            Assert.Equal(plaintext, unprotectedBytes);
             Assert.Throws<CryptographicException>(() => protector.Unprotect(protectedBytes, wrongEntropy));
         }
         finally
@@ -30,6 +32,10 @@ public sealed class DpapiCurrentUserProtectorTests
             CryptographicOperations.ZeroMemory(entropy);
             CryptographicOperations.ZeroMemory(wrongEntropy);
             CryptographicOperations.ZeroMemory(protectedBytes);
+            if (unprotectedBytes is not null)
+            {
+                CryptographicOperations.ZeroMemory(unprotectedBytes);
+            }
         }
     }
 }

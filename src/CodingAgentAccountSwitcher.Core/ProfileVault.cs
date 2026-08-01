@@ -9,6 +9,8 @@ public sealed class AuthenticationProfileVault
 {
     public const int MaximumCredentialSizeBytes = 16 * 1024 * 1024;
     private const int MaximumProtectedBlobSizeBytes = MaximumCredentialSizeBytes + (1024 * 1024);
+    private const int MaximumMetadataSizeBytes = 1024 * 1024;
+    private const string ProfileMetadataSuffix = ".metadata.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -42,7 +44,14 @@ public sealed class AuthenticationProfileVault
     public AuthenticationProfileMetadata CreateProfile(
         AgentProvider provider,
         string displayName,
-        byte[] credentialBytes)
+        byte[] credentialBytes) =>
+        CreateProfileCore(provider, displayName, credentialBytes, onMutationStarting: null);
+
+    private AuthenticationProfileMetadata CreateProfileCore(
+        AgentProvider provider,
+        string displayName,
+        byte[] credentialBytes,
+        Action? onMutationStarting)
     {
         ValidateDisplayName(displayName);
         ValidateCredential(credentialBytes);
@@ -63,18 +72,31 @@ public sealed class AuthenticationProfileVault
 
         try
         {
-            _atomicWriter.WriteAllBytes(blobPath, protectedBytes);
             try
             {
+                onMutationStarting?.Invoke();
+                _atomicWriter.WriteAllBytes(blobPath, protectedBytes);
                 WriteJson(metadataPath, metadata);
+                return metadata;
             }
-            catch
+            catch (Exception createException)
             {
-                File.Delete(blobPath);
+                var rollbackErrors = new List<Exception>();
+                var metadataRemoved = TryRollback(() => File.Delete(metadataPath), rollbackErrors);
+                if (metadataRemoved)
+                {
+                    TryRollback(() => File.Delete(blobPath), rollbackErrors);
+                }
+                if (rollbackErrors.Count > 0)
+                {
+                    rollbackErrors.Insert(0, createException);
+                    throw new IOException(
+                        "Creating the authentication profile failed and its files could not be removed completely.",
+                        new AggregateException(rollbackErrors));
+                }
+
                 throw;
             }
-
-            return metadata;
         }
         finally
         {
@@ -85,22 +107,174 @@ public sealed class AuthenticationProfileVault
     public AuthenticationProfileMetadata UpdateCredential(
         AgentProvider provider,
         Guid profileId,
-        byte[] credentialBytes)
+        byte[] credentialBytes) =>
+        UpdateCredentialCore(provider, profileId, credentialBytes, onMutationStarting: null);
+
+    private AuthenticationProfileMetadata UpdateCredentialCore(
+        AgentProvider provider,
+        Guid profileId,
+        byte[] credentialBytes,
+        Action? onMutationStarting)
     {
         ValidateCredential(credentialBytes);
         var metadata = GetProfile(provider, profileId);
-        var protectedBytes = ProtectCredential(metadata, credentialBytes);
+        var blobPath = GetBlobPath(provider, profileId);
+        var metadataPath = GetMetadataPath(provider, profileId);
+        byte[]? previousBlob = null;
+        byte[]? previousMetadata = null;
+        byte[]? protectedBytes = null;
 
         try
         {
-            _atomicWriter.WriteAllBytes(GetBlobPath(provider, profileId), protectedBytes);
-            var updated = metadata with { CapturedAtUtc = _timeProvider.GetUtcNow() };
-            WriteJson(GetMetadataPath(provider, profileId), updated);
-            return updated;
+            previousBlob = ReadBoundedFile(blobPath, MaximumProtectedBlobSizeBytes);
+            previousMetadata = ReadBoundedFile(metadataPath, MaximumMetadataSizeBytes);
+            protectedBytes = ProtectCredential(metadata, credentialBytes);
+            try
+            {
+                onMutationStarting?.Invoke();
+                _atomicWriter.WriteAllBytes(blobPath, protectedBytes);
+                var updated = metadata with { CapturedAtUtc = _timeProvider.GetUtcNow() };
+                WriteJson(metadataPath, updated);
+                return updated;
+            }
+            catch (Exception updateException)
+            {
+                var rollbackErrors = new List<Exception>();
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(blobPath, previousBlob!),
+                    rollbackErrors);
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(metadataPath, previousMetadata!),
+                    rollbackErrors);
+                if (rollbackErrors.Count > 0)
+                {
+                    rollbackErrors.Insert(0, updateException);
+                    throw new IOException(
+                        "Updating the authentication profile failed and its previous state could not be restored completely.",
+                        new AggregateException(rollbackErrors));
+                }
+
+                throw;
+            }
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(protectedBytes);
+            ZeroIfPresent(protectedBytes);
+            ZeroIfPresent(previousBlob);
+            ZeroIfPresent(previousMetadata);
+        }
+    }
+
+    internal AuthenticationProfileMetadata CaptureProfileAndSetActive(
+        AgentProvider provider,
+        string displayName,
+        byte[] credentialBytes,
+        Guid? profileToReplace)
+    {
+        ValidateDisplayName(displayName);
+        ValidateCredential(credentialBytes);
+
+        var activeStatePath = GetActiveStatePath(provider);
+        var activeStateExisted = false;
+        byte[]? previousActiveState = null;
+        byte[]? previousProfileBlob = null;
+        byte[]? previousProfileMetadata = null;
+        AuthenticationProfileMetadata? capturedProfile = null;
+        var mutationStarted = false;
+
+        try
+        {
+            activeStateExisted = File.Exists(activeStatePath);
+            previousActiveState = activeStateExisted
+                ? ReadBoundedFile(activeStatePath, MaximumMetadataSizeBytes)
+                : null;
+
+            if (profileToReplace.HasValue)
+            {
+                // Read and validate the existing profile before taking the exact on-disk
+                // snapshot used if committing the active state fails.
+                GetProfile(provider, profileToReplace.Value);
+                previousProfileBlob = ReadBoundedFile(
+                    GetBlobPath(provider, profileToReplace.Value),
+                    MaximumProtectedBlobSizeBytes);
+                previousProfileMetadata = ReadBoundedFile(
+                    GetMetadataPath(provider, profileToReplace.Value),
+                    MaximumMetadataSizeBytes);
+            }
+
+            void MarkMutationStarting() => mutationStarted = true;
+            capturedProfile = profileToReplace.HasValue
+                ? UpdateCredentialCore(
+                    provider,
+                    profileToReplace.Value,
+                    credentialBytes,
+                    MarkMutationStarting)
+                : CreateProfileCore(provider, displayName, credentialBytes, MarkMutationStarting);
+
+            WriteActiveProfile(new ActiveProfileState
+            {
+                Provider = provider,
+                ProfileId = capturedProfile.ProfileId,
+                ActivatedAtUtc = _timeProvider.GetUtcNow()
+            });
+
+            return capturedProfile;
+        }
+        catch (Exception captureException)
+        {
+            if (!mutationStarted)
+            {
+                throw;
+            }
+
+            var rollbackErrors = new List<Exception>();
+
+            if (profileToReplace.HasValue)
+            {
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(
+                        GetBlobPath(provider, profileToReplace.Value),
+                        previousProfileBlob!),
+                    rollbackErrors);
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(
+                        GetMetadataPath(provider, profileToReplace.Value),
+                        previousProfileMetadata!),
+                    rollbackErrors);
+            }
+
+            var activeStateRestored = TryRollback(
+                () => RestoreFile(activeStatePath, activeStateExisted, previousActiveState),
+                rollbackErrors);
+
+            if (!profileToReplace.HasValue && capturedProfile is not null && activeStateRestored)
+            {
+                var metadataRemoved = TryRollback(
+                    () => File.Delete(GetMetadataPath(provider, capturedProfile.ProfileId)),
+                    rollbackErrors);
+                if (metadataRemoved)
+                {
+                    TryRollback(
+                        () => File.Delete(GetBlobPath(provider, capturedProfile.ProfileId)),
+                        rollbackErrors);
+                }
+            }
+
+            if (rollbackErrors.Count > 0)
+            {
+                rollbackErrors.Insert(0, captureException);
+                throw new IOException(
+                    "Capturing the login failed and the profile state could not be rolled back completely.",
+                    new AggregateException(rollbackErrors));
+            }
+
+            throw;
+        }
+        finally
+        {
+            ZeroIfPresent(previousActiveState);
+            ZeroIfPresent(previousProfileBlob);
+            ZeroIfPresent(previousProfileMetadata);
         }
     }
 
@@ -127,24 +301,69 @@ public sealed class AuthenticationProfileVault
 
     public IReadOnlyList<AuthenticationProfileMetadata> ListProfiles(AgentProvider provider)
     {
+        var result = ListProfilesWithIssues(provider);
+        if (result.Issues.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"One or more authentication profile metadata files are invalid. " +
+                $"The first affected file is '{result.Issues[0].FileName}'.");
+        }
+
+        return result.Profiles;
+    }
+
+    public AuthenticationProfileListResult ListProfilesWithIssues(AgentProvider provider)
+    {
         var directory = GetProviderDirectory(provider);
-        if (!Directory.Exists(directory))
+        try
         {
-            return Array.Empty<AuthenticationProfileMetadata>();
+            return ListProfilesWithIssues(
+                provider,
+                Directory.EnumerateFiles(directory, $"*{ProfileMetadataSuffix}", SearchOption.TopDirectoryOnly));
         }
+        catch (DirectoryNotFoundException)
+        {
+            // A provider that has never saved a profile has no directory yet.
+            return new AuthenticationProfileListResult();
+        }
+    }
 
+    internal static AuthenticationProfileListResult ListProfilesWithIssues(
+        AgentProvider provider,
+        IEnumerable<string> metadataPaths)
+    {
+        ArgumentNullException.ThrowIfNull(metadataPaths);
         var profiles = new List<AuthenticationProfileMetadata>();
-        foreach (var path in Directory.EnumerateFiles(directory, "*.metadata.json", SearchOption.TopDirectoryOnly))
+        var issues = new List<AuthenticationProfileLoadIssue>();
+        foreach (var path in metadataPaths)
         {
-            var metadata = ReadJson<AuthenticationProfileMetadata>(path);
-            ValidateMetadata(metadata, provider, metadata.ProfileId);
-            profiles.Add(metadata);
+            var fileName = Path.GetFileName(path);
+            try
+            {
+                var expectedProfileId = ParseProfileIdFromMetadataFileName(fileName);
+                var metadata = ReadJson<AuthenticationProfileMetadata>(path);
+                ValidateMetadata(metadata, provider, expectedProfileId);
+                profiles.Add(metadata);
+            }
+            catch (Exception exception) when (IsIsolatableProfileMetadataException(exception))
+            {
+                // Keep damaged files untouched so the user can recover or inspect them manually.
+                issues.Add(new AuthenticationProfileLoadIssue
+                {
+                    FileName = fileName,
+                    Message = exception.Message
+                });
+            }
         }
 
-        return profiles
-            .OrderBy(profile => profile.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(profile => profile.ProfileId)
-            .ToArray();
+        return new AuthenticationProfileListResult
+        {
+            Profiles = profiles
+                .OrderBy(profile => profile.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(profile => profile.ProfileId)
+                .ToArray(),
+            Issues = issues.ToArray()
+        };
     }
 
     public byte[] LoadCredential(AgentProvider provider, Guid profileId)
@@ -349,16 +568,37 @@ public sealed class AuthenticationProfileVault
 
     private static T ReadJson<T>(string path)
     {
+        var bytes = ReadBoundedFile(path, MaximumMetadataSizeBytes);
         try
         {
-            var value = JsonSerializer.Deserialize<T>(File.ReadAllBytes(path), JsonOptions);
+            var value = JsonSerializer.Deserialize<T>(bytes, JsonOptions);
             return value ?? throw new InvalidDataException($"The file '{path}' contains no data.");
         }
         catch (JsonException exception)
         {
             throw new InvalidDataException($"The file '{path}' is not valid switcher metadata.", exception);
         }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
+
+    private static Guid ParseProfileIdFromMetadataFileName(string fileName)
+    {
+        if (!fileName.EndsWith(ProfileMetadataSuffix, StringComparison.OrdinalIgnoreCase) ||
+            !Guid.TryParseExact(fileName[..^ProfileMetadataSuffix.Length], "N", out var profileId) ||
+            profileId == Guid.Empty)
+        {
+            throw new InvalidDataException("The authentication profile metadata file name is invalid.");
+        }
+
+        return profileId;
+    }
+
+    private static bool IsIsolatableProfileMetadataException(Exception exception) =>
+        exception is InvalidDataException or IOException or UnauthorizedAccessException or
+            System.Security.SecurityException;
 
     private static byte[] ReadBoundedFile(string path, int maximumSize)
     {
@@ -369,8 +609,58 @@ public sealed class AuthenticationProfileVault
         }
 
         var bytes = new byte[(int)stream.Length];
-        stream.ReadExactly(bytes);
-        return bytes;
+        try
+        {
+            stream.ReadExactly(bytes);
+            return bytes;
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+            throw;
+        }
+    }
+
+    private void RestoreFile(string path, bool existed, byte[]? previousContents)
+    {
+        if (existed)
+        {
+            _atomicWriter.WriteAllBytes(path, previousContents!);
+        }
+        else
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // The exact pre-operation state was that neither the file nor its
+                // parent directory existed, so there is nothing left to restore.
+            }
+        }
+    }
+
+    private static bool TryRollback(Action action, ICollection<Exception> rollbackErrors)
+    {
+        try
+        {
+            action();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            rollbackErrors.Add(exception);
+            return false;
+        }
+    }
+
+    private static void ZeroIfPresent(byte[]? bytes)
+    {
+        if (bytes is not null)
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
 
     private static void ValidateCredential(byte[] credentialBytes)

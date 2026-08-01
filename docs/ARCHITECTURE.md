@@ -21,9 +21,10 @@ core and a WPF presentation layer.
   operation can be recovered or blocked safely on the next startup. Its
   transaction ID identifies the exact plaintext replacement temporary and
   backup files owned by that operation.
-- **Restore recovery credential**: when the last selected snapshot is restored
-  over different live bytes, those pre-restore bytes are kept in a
-  transaction-only DPAPI-encrypted blob until commit or rollback completes.
+- **Transaction recovery credential**: when confirmed live bytes differ from
+  the saved source during either an ordinary profile switch or a saved-snapshot
+  restore, those exact pre-switch bytes are kept in a transaction-only
+  DPAPI-encrypted blob until commit or rollback completes.
 - **WPF application**: presents provider tabs, account cards, capture and switch
   actions, process-blocking dialogs, and status messages.
 - **Localization catalog**: supplies every fixed interface string for the
@@ -59,15 +60,20 @@ core and a WPF presentation layer.
    restored over the live file.
 9. The journal is deleted only after the live file, active state, and exact
    transaction-owned temporary-file and backup-file cleanup are complete. A
-   restore recovery credential is retained until that journal deletion succeeds,
-   then removed on a best-effort basis.
+   transaction recovery credential is retained until that journal deletion
+   succeeds, then removed on a best-effort basis.
 10. Language and startup preferences never read or modify provider authentication
     files, provider configuration, or encrypted profile blobs.
-11. Disabling startup removes only the exact registration owned by the current
-    executable. Ownership requires an unexpanded `REG_SZ` value whose command
-    matches byte-for-byte; an unexpected type, empty value, or command is
-    preserved rather than overwritten or deleted.
-12. Uninstall preserves `%LOCALAPPDATA%\CodingAgentAccountSwitcher`, including
+11. Reading startup state never writes to the registry. Disabling startup removes
+    only the exact registration owned by the current executable. Ownership
+    requires an unexpanded `REG_SZ` value whose command matches byte-for-byte;
+    an unexpected type, empty value, or command is preserved rather than
+    overwritten or deleted.
+12. Explicitly enabling startup may repair a strict, single-executable command
+    for a known application filename only after the previously registered
+    executable path is confirmed missing. An existing or inaccessible path is
+    preserved.
+13. Uninstall preserves `%LOCALAPPDATA%\CodingAgentAccountSwitcher`, including
     preferences and encrypted account snapshots. It invokes the application in
     a non-UI cleanup mode that removes the startup value only when the raw type
     and command exactly match the installed executable.
@@ -98,6 +104,21 @@ inside. If a user signs in or out outside the application, they must capture the
 current login again under the correct label. A byte mismatch cannot distinguish
 a harmless token refresh from another account, so save-before-switch pauses for
 explicit confirmation and offers to capture the login separately.
+
+## Refreshed-source switch recovery
+
+When a confirmed live login differs from the saved source during an ordinary
+profile switch, the service writes those exact bytes to a transaction-only
+DPAPI-encrypted recovery blob before writing the `Prepared` journal. It updates
+the source snapshot only after the final process-safety check. If interruption
+occurs between those steps, recovery prefers the encrypted pre-switch bytes and
+synchronizes the source snapshot when restoring them. A legacy `ProfileSwitch`
+journal with no recovery blob falls back to the saved source snapshot.
+
+The journal contains only transaction metadata; it never stores the recovery
+bytes, their fingerprint, or the live authentication path. If the live file
+matches neither the selected source evidence nor the target snapshot, recovery
+keeps both the journal and encrypted recovery blob for manual attention.
 
 ## Last-selected snapshot restore
 

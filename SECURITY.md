@@ -34,9 +34,19 @@ storage and cross-user access, not to replace endpoint security.
 - Derive plaintext replacement temporary and backup filenames from the
   non-secret journal transaction ID. Delete only those exact owned files during
   commit, rollback, or recovery, and delete the journal last.
-- Preserve pre-restore live bytes only in a transaction-specific DPAPI-encrypted
-  recovery blob. Keep it until the journal is deleted successfully, then remove
-  it on a best-effort basis so a journal is never stranded without rollback data.
+- Preserve confirmed pre-switch live bytes that differ from the saved source
+  only in a transaction-specific DPAPI-encrypted recovery blob. This applies to
+  both saved-snapshot restore and an ordinary switch with refreshed source
+  credentials. Write the blob before the journal, keep it until the journal is
+  deleted successfully, then remove it on a best-effort basis so a journal is
+  never stranded without rollback data.
+- During ordinary-switch recovery, prefer transaction recovery bytes when they
+  exist and synchronize the source snapshot if those bytes are restored. Fall
+  back to the saved source only when supporting a legacy journal with no recovery
+  blob. Preserve both journal and encrypted recovery evidence for an unknown
+  third live state.
+- Keep fingerprints, authentication paths, credential contents, and any
+  token-derived values out of recovery journals.
 - Treat a live authentication file that differs from the last selected snapshot
   as ambiguous until the user explicitly confirms the exact observed bytes.
   Never reuse that confirmation for different live authentication contents.

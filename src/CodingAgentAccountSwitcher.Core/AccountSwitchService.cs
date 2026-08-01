@@ -134,7 +134,6 @@ public sealed class AccountSwitchService
                 };
             }
 
-            AuthenticationProfileMetadata profile;
             if (profileToReplace.HasValue)
             {
                 var existingProfile = _vault.GetProfile(adapter.Provider, profileToReplace.Value);
@@ -142,19 +141,13 @@ public sealed class AccountSwitchService
                 {
                     throw new InvalidOperationException("The replacement profile label does not match.");
                 }
+            }
 
-                profile = _vault.UpdateCredential(adapter.Provider, profileToReplace.Value, currentCredential);
-            }
-            else
-            {
-                profile = _vault.CreateProfile(adapter.Provider, displayName, currentCredential);
-            }
-            _vault.WriteActiveProfile(new ActiveProfileState
-            {
-                Provider = adapter.Provider,
-                ProfileId = profile.ProfileId,
-                ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
-            });
+            var profile = _vault.CaptureProfileAndSetActive(
+                adapter.Provider,
+                displayName,
+                currentCredential,
+                profileToReplace);
 
             return new CaptureProfileResult
             {
@@ -395,20 +388,17 @@ public sealed class AccountSwitchService
                 StartedAtUtc = _vault.TimeProvider.GetUtcNow()
             };
 
-            if (isSavedSnapshotRestore)
+            if (isSavedSnapshotRestore || activeProfileChanged)
             {
+                // Preserve the exact confirmed pre-switch bytes before the journal is
+                // made durable. This also covers a refreshed source profile whose
+                // persisted snapshot has not been updated yet.
                 _vault.WriteTransactionRecoveryCredential(
                     adapter.Provider,
                     journal.TransactionId,
                     currentCredential);
                 recoveryCredentialWritten = true;
             }
-            else if (activeProfileChanged)
-            {
-                // Persist a confirmed token refresh before switching away.
-                _vault.UpdateCredential(adapter.Provider, activeState.ProfileId, currentCredential);
-            }
-
             _vault.WritePendingJournal(journal);
             journalWritten = true;
 
@@ -447,6 +437,13 @@ public sealed class AccountSwitchService
                     TargetProfileId = targetProfileId,
                     ProcessInspection = commitInspection
                 };
+            }
+
+            if (!isSavedSnapshotRestore && activeProfileChanged)
+            {
+                // Persist a confirmed token refresh only after the last process-safety
+                // check has authorized the transaction to commit.
+                _vault.UpdateCredential(adapter.Provider, activeState.ProfileId, currentCredential);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -530,6 +527,21 @@ public sealed class AccountSwitchService
                 }
 
                 return FailedSwitch(targetProfileId, inspection, exception.Message, activeState.ProfileId);
+            }
+
+            var rollbackInspection = _processInspector.Inspect(adapter);
+            if (rollbackInspection.Status != ProcessInspectionStatus.Clear)
+            {
+                // Keep the journal and any transaction-owned files intact. Recovery can
+                // determine which side is live once the provider is safely stopped.
+                return new SwitchProfileResult
+                {
+                    Status = AccountOperationStatus.RecoveryRequired,
+                    SourceProfileId = activeState.ProfileId,
+                    TargetProfileId = targetProfileId,
+                    ProcessInspection = rollbackInspection,
+                    ErrorMessage = "Switch failed, but rollback was deferred because provider process safety could not be confirmed."
+                };
             }
 
             try
@@ -662,9 +674,23 @@ public sealed class AccountSwitchService
         byte[]? currentCredential = null;
         byte[]? sourceCredential = null;
         byte[]? targetCredential = null;
+        var sourceCredentialCameFromRecovery = false;
         try
         {
-            sourceCredential = _vault.LoadCredential(adapter.Provider, journal.SourceProfileId);
+            try
+            {
+                // New journals with a confirmed refreshed source preserve those exact
+                // bytes in a transaction-only DPAPI blob. A missing blob identifies a
+                // legacy journal and intentionally falls back to the saved source.
+                sourceCredential = _vault.LoadTransactionRecoveryCredential(
+                    adapter.Provider,
+                    journal.TransactionId);
+                sourceCredentialCameFromRecovery = true;
+            }
+            catch (FileNotFoundException)
+            {
+                sourceCredential = _vault.LoadCredential(adapter.Provider, journal.SourceProfileId);
+            }
 
             try
             {
@@ -691,16 +717,11 @@ public sealed class AccountSwitchService
                     adapter.AuthenticationFilePath,
                     sourceCredential,
                     journal.TransactionId);
-                _vault.WriteActiveProfile(new ActiveProfileState
-                {
-                    Provider = adapter.Provider,
-                    ProfileId = journal.SourceProfileId,
-                    ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
-                });
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
-                    journal.TransactionId);
-                _vault.DeletePendingJournal(adapter.Provider);
+                CompleteProfileSwitchSourceRecovery(
+                    adapter,
+                    journal,
+                    sourceCredential,
+                    sourceCredentialCameFromRecovery);
                 return new RecoveryResult
                 {
                     Status = RecoveryStatus.RecoveredToSource,
@@ -723,16 +744,11 @@ public sealed class AccountSwitchService
 
             if (BytesEqual(currentCredential, sourceCredential))
             {
-                _vault.WriteActiveProfile(new ActiveProfileState
-                {
-                    Provider = adapter.Provider,
-                    ProfileId = journal.SourceProfileId,
-                    ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
-                });
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
-                    journal.TransactionId);
-                _vault.DeletePendingJournal(adapter.Provider);
+                CompleteProfileSwitchSourceRecovery(
+                    adapter,
+                    journal,
+                    sourceCredential,
+                    sourceCredentialCameFromRecovery);
                 return new RecoveryResult
                 {
                     Status = RecoveryStatus.RecoveredToSource,
@@ -755,6 +771,10 @@ public sealed class AccountSwitchService
                     adapter.AuthenticationFilePath,
                     journal.TransactionId);
                 _vault.DeletePendingJournal(adapter.Provider);
+                if (sourceCredentialCameFromRecovery)
+                {
+                    TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
+                }
                 return new RecoveryResult
                 {
                     Status = RecoveryStatus.CompletedTargetActivation,
@@ -787,6 +807,37 @@ public sealed class AccountSwitchService
             ZeroIfPresent(currentCredential);
             ZeroIfPresent(sourceCredential);
             ZeroIfPresent(targetCredential);
+        }
+    }
+
+    private void CompleteProfileSwitchSourceRecovery(
+        IAuthenticationAdapter adapter,
+        SwitchTransactionJournal journal,
+        byte[] sourceCredential,
+        bool sourceCredentialCameFromRecovery)
+    {
+        if (sourceCredentialCameFromRecovery)
+        {
+            // The live login was confirmed before the interrupted switch, so make the
+            // source snapshot agree with the exact bytes selected during recovery.
+            _vault.UpdateCredential(adapter.Provider, journal.SourceProfileId, sourceCredential);
+        }
+
+        _vault.WriteActiveProfile(new ActiveProfileState
+        {
+            Provider = adapter.Provider,
+            ProfileId = journal.SourceProfileId,
+            ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
+        });
+        _vault.AtomicWriter.DeleteOwnedTransactionFiles(
+            adapter.AuthenticationFilePath,
+            journal.TransactionId);
+        _vault.DeletePendingJournal(adapter.Provider);
+        if (sourceCredentialCameFromRecovery)
+        {
+            // Delete recovery evidence only after the journal no longer advertises an
+            // incomplete transaction. Failure leaves an encrypted, harmless orphan.
+            TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
         }
     }
 
@@ -986,8 +1037,16 @@ public sealed class AccountSwitchService
         }
 
         var bytes = new byte[(int)stream.Length];
-        stream.ReadExactly(bytes);
-        return bytes;
+        try
+        {
+            stream.ReadExactly(bytes);
+            return bytes;
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+            throw;
+        }
     }
 
     private static bool BytesEqual(byte[] left, byte[] right) =>

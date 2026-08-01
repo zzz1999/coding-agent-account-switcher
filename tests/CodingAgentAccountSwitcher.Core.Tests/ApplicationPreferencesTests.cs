@@ -71,7 +71,7 @@ public sealed class ApplicationPreferencesTests
 
         var catalogs = LocalizationCatalog.Create();
         Assert.Equal(expectedLanguages.Length, catalogs.Count);
-        Assert.Equal(123, catalogs["en-US"].Count);
+        Assert.Equal(124, catalogs["en-US"].Count);
         foreach (var language in expectedLanguages)
         {
             Assert.Equal(catalogs["en-US"].Keys.Order(), catalogs[language].Keys.Order());
@@ -128,6 +128,105 @@ public sealed class ApplicationPreferencesTests
                 false,
                 owned with { Command = expected.ToUpperInvariant() },
                 expected));
+    }
+
+    [Fact]
+    public void StartupRegistrationClassificationRepairsOnlyStrictProductRelocations()
+    {
+        const string currentCommand =
+            "\"C:\\Tools\\coding-agent-account-switcher-portable-win-x64.exe\"";
+        const string previousCommand = "\"D:\\Apps\\CodingAgentAccountSwitcher.exe\"";
+        var relocated = new StartupRegistrationValue(
+            true,
+            Microsoft.Win32.RegistryValueKind.String,
+            previousCommand);
+
+        Assert.Equal(
+            StartupRegistrationStatus.Relocated,
+            StartupRegistrationService.ClassifyRegistration(relocated, currentCommand));
+        Assert.False(StartupRegistrationService.IsRegistrationEnabled(relocated, currentCommand));
+
+        string? inspectedRegisteredPath = null;
+        Assert.True(StartupRegistrationService.ShouldMutateRegistration(
+            true,
+            relocated,
+            currentCommand,
+            registeredPath =>
+            {
+                inspectedRegisteredPath = registeredPath;
+                return true;
+            }));
+        Assert.Equal(@"D:\Apps\CodingAgentAccountSwitcher.exe", inspectedRegisteredPath);
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupRegistrationService.ShouldMutateRegistration(
+                true,
+                relocated,
+                currentCommand,
+                _ => false));
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupRegistrationService.ShouldMutateRegistration(false, relocated, currentCommand));
+        Assert.Equal(
+            StartupRegistrationStatus.Conflicting,
+            StartupRegistrationService.ClassifyRegistration(
+                relocated with { Command = previousCommand + " --unexpected" },
+                currentCommand));
+        Assert.Equal(
+            StartupRegistrationStatus.Conflicting,
+            StartupRegistrationService.ClassifyRegistration(
+                relocated with { Kind = Microsoft.Win32.RegistryValueKind.ExpandString },
+                currentCommand));
+        Assert.Equal(
+            StartupRegistrationStatus.Conflicting,
+            StartupRegistrationService.ClassifyRegistration(
+                relocated with { Command = "\"D:\\Apps\\DifferentProduct.exe\"" },
+                currentCommand));
+    }
+
+    [Fact]
+    public void StartupRepairRequiresThePreviouslyRegisteredExecutableToBeMissing()
+    {
+        using var temporary = new TemporaryDirectory();
+        var previousExecutablePath = Path.Combine(
+            temporary.Path,
+            "previous",
+            "CodingAgentAccountSwitcher.exe");
+        var currentExecutablePath = Path.Combine(
+            temporary.Path,
+            "current",
+            "coding-agent-account-switcher-portable-win-x64.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(previousExecutablePath)!);
+        File.WriteAllBytes(previousExecutablePath, [0x4D, 0x5A]);
+
+        var previousCommand = StartupRegistrationService.BuildCommand(previousExecutablePath, null);
+        var currentCommand = StartupRegistrationService.BuildCommand(currentExecutablePath, null);
+        var registration = new StartupRegistrationValue(
+            true,
+            Microsoft.Win32.RegistryValueKind.String,
+            previousCommand);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupRegistrationService.ShouldMutateRegistration(
+                true,
+                registration,
+                currentCommand));
+
+        File.Delete(previousExecutablePath);
+
+        Assert.True(StartupRegistrationService.ShouldMutateRegistration(
+            true,
+            registration,
+            currentCommand));
+    }
+
+    [Theory]
+    [InlineData(Visibility.Collapsed, true)]
+    [InlineData(Visibility.Hidden, true)]
+    [InlineData(Visibility.Visible, false)]
+    public void DialogFocusIsCapturedOnlyWhenAnOverlayIsOpening(
+        Visibility currentVisibility,
+        bool expected)
+    {
+        Assert.Equal(expected, MainWindow.ShouldRememberDialogFocus(currentVisibility));
     }
 
     [Theory]

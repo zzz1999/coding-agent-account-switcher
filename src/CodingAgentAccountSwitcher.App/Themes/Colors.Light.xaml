@@ -1,41 +1,37 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <LinearGradientBrush x:Key="Brush.Window.Background" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Offset="0" Color="#FFF8F9FD" />
-        <GradientStop Offset="0.55" Color="#FFF1F4FA" />
-        <GradientStop Offset="1" Color="#FFE5EAF5" />
-    </LinearGradientBrush>
-    <SolidColorBrush x:Key="Brush.Surface.Glass" Color="#DEFFFFFF" />
-    <SolidColorBrush x:Key="Brush.Surface.GlassStrong" Color="#F7FFFFFF" />
+    <SolidColorBrush x:Key="Brush.Surface.Glass" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Surface.GlassStrong" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.Surface.GlassHover" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="Brush.Surface.Control" Color="#80FFFFFF" />
-    <SolidColorBrush x:Key="Brush.Surface.ControlHover" Color="#F2FFFFFF" />
+    <SolidColorBrush x:Key="Brush.Surface.Control" Color="#FFF7F8FA" />
+    <SolidColorBrush x:Key="Brush.Surface.ControlHover" Color="#FFF0F2F5" />
     <SolidColorBrush x:Key="Brush.Toggle.TrackOff" Color="#FF9DA6B4" />
     <SolidColorBrush x:Key="Brush.Toggle.TrackOffBorder" Color="#FF8791A1" />
     <SolidColorBrush x:Key="Brush.Toggle.TrackOn" Color="#FF34B85A" />
     <SolidColorBrush x:Key="Brush.Toggle.TrackOnBorder" Color="#FF2B9F4C" />
     <SolidColorBrush x:Key="Brush.Toggle.Thumb" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Toggle.ThumbBorder" Color="#FFCBD2DC" />
     <SolidColorBrush x:Key="Brush.Segmented.Track" Color="#FFE1E5EB" />
     <SolidColorBrush x:Key="Brush.Segmented.TrackBorder" Color="#FFC4CBD6" />
     <SolidColorBrush x:Key="Brush.Segmented.Hover" Color="#FFF0F2F6" />
-    <SolidColorBrush x:Key="Brush.Border.Subtle" Color="#24334155" />
-    <SolidColorBrush x:Key="Brush.Border.Strong" Color="#3A334155" />
-    <SolidColorBrush x:Key="Brush.Divider" Color="#18334155" />
+    <SolidColorBrush x:Key="Brush.Border.Subtle" Color="#FFD8DEE7" />
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="#FFC3CBD7" />
+    <SolidColorBrush x:Key="Brush.Divider" Color="#FFE2E6EC" />
     <SolidColorBrush x:Key="Brush.Text.Primary" Color="#FF171922" />
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="#FF5B6372" />
-    <SolidColorBrush x:Key="Brush.Text.Tertiary" Color="#FF667085" />
+    <SolidColorBrush x:Key="Brush.Text.Tertiary" Color="#FF5F6878" />
     <SolidColorBrush x:Key="Brush.Text.Inverse" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.Accent" Color="#FF4659D9" />
     <SolidColorBrush x:Key="Brush.Accent.Hover" Color="#FF394BC7" />
-    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#1F4659D9" />
+    <SolidColorBrush x:Key="Brush.Accent.Muted" Color="#FFE9ECFF" />
     <SolidColorBrush x:Key="Brush.State.Success" Color="#FF1F7450" />
-    <SolidColorBrush x:Key="Brush.State.SuccessMuted" Color="#181F7450" />
+    <SolidColorBrush x:Key="Brush.State.SuccessMuted" Color="#FFE7F4ED" />
     <SolidColorBrush x:Key="Brush.State.Warning" Color="#FF9A5D00" />
-    <SolidColorBrush x:Key="Brush.State.WarningMuted" Color="#1FAD6A00" />
-    <SolidColorBrush x:Key="Brush.State.Danger" Color="#FFC83C50" />
+    <SolidColorBrush x:Key="Brush.State.WarningMuted" Color="#FFFFF1DC" />
+    <SolidColorBrush x:Key="Brush.State.Danger" Color="#FFB83246" />
+    <SolidColorBrush x:Key="Brush.State.DangerMuted" Color="#FFFDE8EC" />
     <SolidColorBrush x:Key="Brush.FocusRing" Color="#FF4659D9" />
-    <SolidColorBrush x:Key="Brush.Scrim" Color="#730B1020" />
-    <SolidColorBrush x:Key="Brush.Orb.Primary" Color="#335267F8" />
-    <SolidColorBrush x:Key="Brush.Orb.Secondary" Color="#2E28B8A6" />
-    <SolidColorBrush x:Key="Brush.Orb.Warm" Color="#24DD72A5" />
+    <SolidColorBrush x:Key="Brush.FocusRing.OnAccent" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.FocusRing.OnToggle" Color="#FF10131A" />
+    <SolidColorBrush x:Key="Brush.Scrim" Color="#8A111827" />
 </ResourceDictionary>

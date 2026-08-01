@@ -10,12 +10,18 @@
         Width="920"
         Height="700"
         MinWidth="780"
-        MinHeight="610"
+        MinHeight="520"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="False"
-        Background="{DynamicResource Brush.Window.Background}"
+        Background="{DynamicResource Brush.Surface.Glass}"
+        Foreground="{DynamicResource Brush.Text.Primary}"
         FontFamily="{StaticResource Font.Family.Text}"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextHintingMode="Fixed"
+        TextOptions.TextRenderingMode="ClearType"
         Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing"
@@ -24,11 +30,21 @@
         <WindowChrome CaptionHeight="52"
                       ResizeBorderThickness="8"
                       GlassFrameThickness="0"
-                      CornerRadius="0"
+                      CornerRadius="22"
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <!-- Draw icons as vectors so rounded caps and joins stay consistent at every DPI. -->
+        <Style x:Key="Style.Icon.RoundedPath" TargetType="Path">
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="StrokeThickness" Value="1.8" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="StrokeLineJoin" Value="Round" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
         <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
             <Setter Property="Width" Value="54" />
             <Setter Property="Height" Value="44" />
@@ -50,14 +66,25 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="15">
-                                <Ellipse x:Name="Thumb"
-                                         Width="22"
-                                         Height="22"
-                                         Margin="4"
-                                         HorizontalAlignment="Left"
-                                         VerticalAlignment="Center"
-                                         Fill="{DynamicResource Brush.Toggle.Thumb}" />
+                                <Border x:Name="Thumb"
+                                        Width="24"
+                                        Height="24"
+                                        Margin="3"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Background="{DynamicResource Brush.Toggle.Thumb}"
+                                        BorderBrush="{DynamicResource Brush.Toggle.ThumbBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="12" />
                             </Border>
+                            <Border x:Name="ToggleFocusRing"
+                                    Width="50"
+                                    Height="30"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="2"
+                                    CornerRadius="15"
+                                    IsHitTestVisible="False" />
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
@@ -66,9 +93,15 @@
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing}" />
-                                <Setter TargetName="Track" Property="BorderThickness" Value="2" />
+                                <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.Text.Primary}" />
                             </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True" />
+                                    <Condition Property="IsKeyboardFocused" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing.OnToggle}" />
+                            </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Track" Property="Opacity" Value="0.5" />
                             </Trigger>
@@ -190,36 +223,11 @@
     </Window.Resources>
 
     <Grid>
-        <Ellipse Width="520"
-                 Height="520"
-                 Margin="-260,-220,0,0"
-                 HorizontalAlignment="Left"
-                 VerticalAlignment="Top"
-                 Fill="{DynamicResource Brush.Orb.Primary}"
-                 IsHitTestVisible="False">
-            <Ellipse.Effect>
-                <BlurEffect Radius="92" />
-            </Ellipse.Effect>
-        </Ellipse>
-        <Ellipse Width="420"
-                 Height="420"
-                 Margin="0,0,-180,-180"
-                 HorizontalAlignment="Right"
-                 VerticalAlignment="Bottom"
-                 Fill="{DynamicResource Brush.Orb.Secondary}"
-                 IsHitTestVisible="False">
-            <Ellipse.Effect>
-                <BlurEffect Radius="96" />
-            </Ellipse.Effect>
-        </Ellipse>
-
-        <Border Margin="22"
+        <Border x:Name="MainShell"
                 Background="{DynamicResource Brush.Surface.Glass}"
-                BorderBrush="{DynamicResource Brush.Border.Subtle}"
-                BorderThickness="1"
-                CornerRadius="28"
-                Effect="{StaticResource Effect.Card}">
-            <Grid>
+                BorderThickness="0"
+                CornerRadius="22">
+            <Grid Margin="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="52" />
                     <RowDefinition Height="*" />
@@ -257,32 +265,101 @@
                                 Style="{StaticResource Style.Button.Icon}"
                                 AutomationProperties.Name="{DynamicResource L.Window.Theme}"
                                 Click="ThemeButton_Click"
-                                Content="☾"
-                                ToolTip="{DynamicResource L.Window.Theme}" />
+                                ToolTip="{DynamicResource L.Window.Theme}">
+                            <Grid Width="18" Height="18" FlowDirection="LeftToRight">
+                                <Viewbox x:Name="ThemeMoonIcon"
+                                         Width="18"
+                                         Height="18">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Data="M12,3 A6,6 0 0 0 21,12 A9,9 0 1 1 12,3 Z" />
+                                    </Canvas>
+                                </Viewbox>
+                                <Viewbox x:Name="ThemeSunIcon"
+                                         Width="18"
+                                         Height="18"
+                                         Visibility="Collapsed">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Data="M12,8 A4,4 0 1 0 12,16 A4,4 0 1 0 12,8 M12,2 L12,4 M12,20 L12,22 M4.93,4.93 L6.34,6.34 M17.66,17.66 L19.07,19.07 M2,12 L4,12 M20,12 L22,12 M4.93,19.07 L6.34,17.66 M17.66,6.34 L19.07,4.93" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Grid>
+                        </Button>
                         <Button x:Name="SettingsButton"
                                 Style="{StaticResource Style.Button.Icon}"
                                 AutomationProperties.Name="{DynamicResource L.Window.Settings}"
                                 Click="SettingsButton_Click"
-                                Content="⚙"
-                                ToolTip="{DynamicResource L.Window.Settings}" />
+                                ToolTip="{DynamicResource L.Window.Settings}">
+                            <Viewbox Width="18"
+                                     Height="18"
+                                     FlowDirection="LeftToRight">
+                                <Canvas Width="24" Height="24">
+                                    <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Data="M9.594,3.94 C9.684,3.398 10.154,3 10.704,3 H13.296 C13.846,3 14.316,3.398 14.406,3.94 L14.619,5.221 C14.682,5.595 14.932,5.907 15.264,6.091 C15.338,6.131 15.411,6.174 15.484,6.218 C15.809,6.414 16.204,6.475 16.559,6.342 L17.776,5.886 C18.29,5.693 18.869,5.9 19.146,6.376 L20.442,8.623 C20.717,9.099 20.61,9.702 20.19,10.053 L19.194,10.88 C18.902,11.123 18.756,11.493 18.764,11.872 C18.766,11.957 18.766,12.042 18.764,12.127 C18.756,12.505 18.902,12.876 19.194,13.118 L20.189,13.946 C20.609,14.296 20.717,14.9 20.442,15.376 L19.146,17.623 C18.869,18.099 18.29,18.306 17.776,18.113 L16.559,17.657 C16.204,17.524 15.809,17.585 15.483,17.781 C15.411,17.825 15.337,17.868 15.263,17.909 C14.932,18.092 14.682,18.404 14.619,18.778 L14.406,20.059 C14.316,20.602 13.846,21 13.296,21 H10.704 C10.154,21 9.684,20.602 9.594,20.059 L9.381,18.778 C9.318,18.404 9.068,18.092 8.737,17.908 C8.663,17.868 8.59,17.825 8.517,17.781 C8.191,17.585 7.796,17.524 7.441,17.657 L6.224,18.113 C5.71,18.306 5.131,18.099 4.854,17.623 L3.558,15.376 C3.283,14.9 3.391,14.296 3.811,13.946 L4.806,13.119 C5.098,12.876 5.244,12.505 5.236,12.127 C5.234,12.042 5.234,11.957 5.236,11.872 C5.244,11.493 5.098,11.123 4.806,10.881 L3.811,10.053 C3.391,9.703 3.283,9.099 3.558,8.623 L4.854,6.376 C5.131,5.9 5.71,5.693 6.224,5.886 L7.441,6.342 C7.797,6.475 8.191,6.414 8.517,6.218 C8.589,6.174 8.663,6.131 8.737,6.09 C9.068,5.907 9.318,5.595 9.381,5.221 L9.594,3.94 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12 Z" />
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
                         <Button Style="{StaticResource Style.Button.Icon}"
                                 AutomationProperties.Name="{DynamicResource L.Window.Minimize}"
-                                Click="MinimizeButton_Click"
-                                Content="—" />
+                                Click="MinimizeButton_Click">
+                            <Viewbox Width="17"
+                                     Height="17"
+                                     FlowDirection="LeftToRight">
+                                <Canvas Width="24" Height="24">
+                                    <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Data="M5,12 L19,12" />
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
                         <Button x:Name="MaximizeButton"
                                 Style="{StaticResource Style.Button.Icon}"
                                 AutomationProperties.Name="{DynamicResource L.Window.Maximize}"
-                                Click="MaximizeButton_Click"
-                                Content="□" />
-                        <Button Style="{StaticResource Style.Button.Icon}"
+                                Click="MaximizeButton_Click">
+                            <Grid Width="17" Height="17" FlowDirection="LeftToRight">
+                                <Viewbox x:Name="MaximizeIcon"
+                                         Width="17"
+                                         Height="17">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Data="M7,5 H17 A2,2 0 0 1 19,7 V17 A2,2 0 0 1 17,19 H7 A2,2 0 0 1 5,17 V7 A2,2 0 0 1 7,5 Z" />
+                                    </Canvas>
+                                </Viewbox>
+                                <Viewbox x:Name="RestoreIcon"
+                                         Width="17"
+                                         Height="17"
+                                         Visibility="Collapsed">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Data="M9,5 H17 A2,2 0 0 1 19,7 V15 A2,2 0 0 1 17,17 H16 M7,8 H14 A2,2 0 0 1 16,10 V17 A2,2 0 0 1 14,19 H7 A2,2 0 0 1 5,17 V10 A2,2 0 0 1 7,8 Z" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource Style.Button.CloseIcon}"
                                 AutomationProperties.Name="{DynamicResource L.Window.Close}"
-                                Click="CloseButton_Click"
-                                Content="×" />
+                                Click="CloseButton_Click">
+                            <Viewbox Width="17"
+                                     Height="17"
+                                     FlowDirection="LeftToRight">
+                                <Canvas Width="24" Height="24">
+                                    <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Data="M7,7 L17,17 M17,7 L7,17" />
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
                     </StackPanel>
                 </Grid>
 
                 <ScrollViewer Grid.Row="1"
-                              Padding="34,24,34,26"
+                              Padding="34,22,34,22"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel MaxWidth="820">
@@ -295,7 +372,7 @@
                                    Text="{DynamicResource L.Hero.Description}"
                                    TextWrapping="Wrap" />
 
-                        <Grid Margin="0,26,0,0">
+                        <Grid Margin="0,22,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -329,7 +406,7 @@
                                     Content="{DynamicResource L.Action.SaveCurrentLogin}" />
                         </Grid>
 
-                        <Grid Margin="0,28,0,14">
+                        <Grid Margin="0,24,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -345,22 +422,24 @@
                                            ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                             </StackPanel>
                             <Border Grid.Column="1"
-                                    Height="28"
-                                    Padding="11,0"
-                                    VerticalAlignment="Center"
-                                    Background="{DynamicResource Brush.Accent.Muted}"
-                                    CornerRadius="{StaticResource Radius.Pill}">
+                                     Height="28"
+                                     Padding="11,0"
+                                     VerticalAlignment="Center"
+                                     Background="{DynamicResource Brush.State.SuccessMuted}"
+                                     BorderBrush="{DynamicResource Brush.Border.Subtle}"
+                                     BorderThickness="1"
+                                     CornerRadius="14">
                                 <StackPanel Orientation="Horizontal">
                                     <Ellipse Width="6"
                                              Height="6"
                                              Margin="0,0,7,0"
                                              VerticalAlignment="Center"
                                              Fill="{DynamicResource Brush.State.Success}" />
-                                    <TextBlock VerticalAlignment="Center"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource Brush.Accent}"
-                                               Text="{DynamicResource L.Badge.LocalOnly}" />
+                                     <TextBlock VerticalAlignment="Center"
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="{DynamicResource Brush.State.Success}"
+                                                Text="{DynamicResource L.Badge.LocalOnly}" />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -375,8 +454,7 @@
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
                             <Border x:Name="EmptyStatePanel"
-                                    MinHeight="190"
-                                    Margin="0,0,14,0"
+                                    MinHeight="176"
                                     Padding="24"
                                     Background="{DynamicResource Brush.Surface.Control}"
                                     BorderBrush="{DynamicResource Brush.Border.Subtle}"
@@ -401,8 +479,8 @@
                             </Border>
                         </Grid>
 
-                        <Border Margin="0,24,14,0"
-                                Padding="16,14"
+                        <Border Margin="0,18,0,0"
+                                Padding="16,13"
                                 Background="{DynamicResource Brush.State.SuccessMuted}"
                                 BorderBrush="{DynamicResource Brush.Border.Subtle}"
                                 BorderThickness="1"
@@ -418,12 +496,18 @@
                                         VerticalAlignment="Top"
                                         Background="{DynamicResource Brush.State.SuccessMuted}"
                                         CornerRadius="9">
-                                    <TextBlock HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontSize="14"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource Brush.State.Success}"
-                                               Text="✓" />
+                                    <Viewbox Width="16"
+                                             Height="16"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             FlowDirection="LeftToRight">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                                  Stroke="{DynamicResource Brush.State.Success}"
+                                                  StrokeThickness="2.2"
+                                                  Data="M5,12.5 L10,17.5 L19,7" />
+                                        </Canvas>
+                                    </Viewbox>
                                 </Border>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock FontSize="13"
@@ -447,19 +531,25 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid Margin="0,0,16,0"
+                              VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Ellipse x:Name="StatusDot"
                                      Width="7"
                                      Height="7"
                                      Margin="0,0,9,0"
                                      Fill="{DynamicResource Brush.State.Success}" />
                             <TextBlock x:Name="StatusText"
+                                       Grid.Column="1"
                                        AutomationProperties.LiveSetting="Polite"
                                        Style="{StaticResource Style.Text.Caption}"
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
                                        Text="{DynamicResource L.Status.Initial}" />
-                        </StackPanel>
+                        </Grid>
                         <TextBlock Grid.Column="1"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource Style.Text.Caption}"
@@ -484,12 +574,23 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource Brush.State.WarningMuted}"
                             CornerRadius="15">
-                        <TextBlock HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="23"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Brush.State.Warning}"
-                                   Text="!" />
+                        <Viewbox Width="23"
+                                 Height="23"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.State.Warning}"
+                                      StrokeThickness="2.2"
+                                      Data="M12,5.5 L12,13.5" />
+                                <Ellipse Canvas.Left="10.7"
+                                         Canvas.Top="17"
+                                         Width="2.6"
+                                         Height="2.6"
+                                         Fill="{DynamicResource Brush.State.Warning}" />
+                            </Canvas>
+                        </Viewbox>
                     </Border>
                     <TextBlock x:Name="ProcessDialogTitle"
                                Margin="0,18,0,0"
@@ -513,7 +614,8 @@
                             <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1"
+                        <Button x:Name="CancelProcessDialogButton"
+                                Grid.Column="1"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelProcessDialog_Click"
                                 Content="{DynamicResource L.Common.Cancel}" />
@@ -542,12 +644,18 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource Brush.Accent.Muted}"
                             CornerRadius="15">
-                        <TextBlock HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="17"
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource Brush.Accent}"
-                                   Text="＋" />
+                        <Viewbox Width="22"
+                                 Height="22"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.Accent}"
+                                      StrokeThickness="2.1"
+                                      Data="M12,5.5 L12,18.5 M5.5,12 L18.5,12" />
+                            </Canvas>
+                        </Viewbox>
                     </Border>
                     <TextBlock Margin="0,18,0,0"
                                Style="{StaticResource Style.Text.Title}"
@@ -609,11 +717,18 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource Brush.Accent.Muted}"
                             CornerRadius="15">
-                        <TextBlock HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="20"
-                                   Foreground="{DynamicResource Brush.Accent}"
-                                   Text="⚙" />
+                        <Viewbox Width="24"
+                                 Height="24"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.Accent}"
+                                      StrokeThickness="1.9"
+                                      Data="M9.594,3.94 C9.684,3.398 10.154,3 10.704,3 H13.296 C13.846,3 14.316,3.398 14.406,3.94 L14.619,5.221 C14.682,5.595 14.932,5.907 15.264,6.091 C15.338,6.131 15.411,6.174 15.484,6.218 C15.809,6.414 16.204,6.475 16.559,6.342 L17.776,5.886 C18.29,5.693 18.869,5.9 19.146,6.376 L20.442,8.623 C20.717,9.099 20.61,9.702 20.19,10.053 L19.194,10.88 C18.902,11.123 18.756,11.493 18.764,11.872 C18.766,11.957 18.766,12.042 18.764,12.127 C18.756,12.505 18.902,12.876 19.194,13.118 L20.189,13.946 C20.609,14.296 20.717,14.9 20.442,15.376 L19.146,17.623 C18.869,18.099 18.29,18.306 17.776,18.113 L16.559,17.657 C16.204,17.524 15.809,17.585 15.483,17.781 C15.411,17.825 15.337,17.868 15.263,17.909 C14.932,18.092 14.682,18.404 14.619,18.778 L14.406,20.059 C14.316,20.602 13.846,21 13.296,21 H10.704 C10.154,21 9.684,20.602 9.594,20.059 L9.381,18.778 C9.318,18.404 9.068,18.092 8.737,17.908 C8.663,17.868 8.59,17.825 8.517,17.781 C8.191,17.585 7.796,17.524 7.441,17.657 L6.224,18.113 C5.71,18.306 5.131,18.099 4.854,17.623 L3.558,15.376 C3.283,14.9 3.391,14.296 3.811,13.946 L4.806,13.119 C5.098,12.876 5.244,12.505 5.236,12.127 C5.234,12.042 5.234,11.957 5.236,11.872 C5.244,11.493 5.098,11.123 4.806,10.881 L3.811,10.053 C3.391,9.703 3.283,9.099 3.558,8.623 L4.854,6.376 C5.131,5.9 5.71,5.693 6.224,5.886 L7.441,6.342 C7.797,6.475 8.191,6.414 8.517,6.218 C8.589,6.174 8.663,6.131 8.737,6.09 C9.068,5.907 9.318,5.595 9.381,5.221 L9.594,3.94 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12 Z" />
+                            </Canvas>
+                        </Viewbox>
                     </Border>
                     <TextBlock Margin="0,18,0,0"
                                Style="{StaticResource Style.Text.Title}"
@@ -627,8 +742,7 @@
                                Style="{StaticResource Style.Text.Caption}"
                                Text="{DynamicResource L.Settings.Language}" />
                     <ComboBox x:Name="LanguageComboBox"
-                              MinHeight="44"
-                              Padding="12,6"
+                              Style="{StaticResource Style.ComboBox}"
                               DisplayMemberPath="NativeName"
                               AutomationProperties.Name="{DynamicResource L.Settings.Language}"
                               SelectionChanged="LanguageComboBox_SelectionChanged" />
@@ -695,12 +809,23 @@
                             HorizontalAlignment="Left"
                             Background="{DynamicResource Brush.State.WarningMuted}"
                             CornerRadius="15">
-                        <TextBlock HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="23"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Brush.State.Warning}"
-                                   Text="!" />
+                        <Viewbox Width="23"
+                                 Height="23"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.State.Warning}"
+                                      StrokeThickness="2.2"
+                                      Data="M12,5.5 L12,13.5" />
+                                <Ellipse Canvas.Left="10.7"
+                                         Canvas.Top="17"
+                                         Width="2.6"
+                                         Height="2.6"
+                                         Fill="{DynamicResource Brush.State.Warning}" />
+                            </Canvas>
+                        </Viewbox>
                     </Border>
                     <TextBlock x:Name="ChangedLoginDialogTitle"
                                Margin="0,18,0,0"
@@ -719,30 +844,23 @@
                                    Text="{DynamicResource L.Changed.Confirm.Safety}"
                                    TextWrapping="Wrap" />
                     </Border>
-                    <Grid Margin="0,22,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1"
+                    <WrapPanel Margin="0,22,0,-8"
+                               HorizontalAlignment="Right">
+                        <Button Margin="0,0,8,8"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelChangedLoginDialog_Click"
                                 Content="{DynamicResource L.Common.Cancel}" />
-                        <Button Grid.Column="3"
+                        <Button Margin="0,0,8,8"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="SaveChangedLoginAsNew_Click"
                                 Content="{DynamicResource L.Changed.SaveAsNew}" />
                         <Button x:Name="ConfirmChangedLoginButton"
-                                Grid.Column="5"
+                                Margin="0,0,0,8"
                                 Style="{StaticResource Style.Button.Primary}"
                                 AutomationProperties.Name="{DynamicResource L.Changed.Confirm.Automation}"
                                 Click="ConfirmChangedLoginSwitch_Click"
                                 Content="{DynamicResource L.Changed.Confirm.Action}" />
-                    </Grid>
+                    </WrapPanel>
                 </StackPanel>
             </Border>
         </Grid>
