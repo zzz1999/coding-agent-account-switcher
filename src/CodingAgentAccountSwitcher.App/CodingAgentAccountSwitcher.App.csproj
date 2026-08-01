@@ -14,7 +14,7 @@
     <Version>0.1.0</Version>
     <Authors>Coding Agent Account Switcher contributors</Authors>
     <Product>Coding Agent Account Switcher</Product>
-    <Description>An unofficial local Windows account switcher for Codex and Claude Code.</Description>
+    <Description>An unofficial local Windows account and API configuration switcher for Codex, Claude Code, and OpenCode.</Description>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>

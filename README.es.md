@@ -2,9 +2,9 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-Un selector de cuentas no oficial, local y para Windows, compatible con Codex y Claude Code.
+Un selector local y no oficial de cuentas y sitios API para Codex, Claude Code y OpenCode en Windows.
 
-Coding Agent Account Switcher guarda instantáneas cifradas y con nombre de los archivos de autenticación locales que usan Codex y Claude Code. Solo cambia la instantánea de autenticación; la configuración habitual, la configuración de MCP, las habilidades, los complementos y el historial de proyectos permanecen en sus ubicaciones originales.
+Coding Agent Account Switcher guarda instantáneas cifradas de las credenciales locales junto con solo los campos de proveedor API necesarios. Los demás ajustes, MCP, habilidades, complementos e historial permanecen en sus ubicaciones originales.
 
 > [!IMPORTANT]
 > Este proyecto no está afiliado, respaldado ni patrocinado por OpenAI ni Anthropic. No transfiere suscripciones, no elude los requisitos de inicio de sesión, no comparte cuentas ni sortea las políticas del proveedor o de una organización.
@@ -19,31 +19,44 @@ Descargue la compilación actual desde la [versión latest](https://github.com/z
 - **Ejecutable portátil:** descargue `coding-agent-account-switcher-portable-win-x64.exe` y ejecútelo directamente, sin necesidad de instalación.
 - La versión incluye un archivo de suma SHA-256 correspondiente para cada ejecutable.
 
-El instalador no activa automáticamente **Iniciar con Windows** ni modifica los archivos de autenticación o configuración de Codex o Claude Code. La desinstalación conserva las instantáneas de cuentas cifradas y los ajustes de la aplicación para que sigan disponibles tras reinstalarla. El instalador y el ejecutable portátil no están firmados actualmente, por lo que Windows SmartScreen puede mostrar una advertencia de reputación.
+El instalador no activa automáticamente **Iniciar con Windows** ni modifica archivos de autenticación o configuración de Codex, Claude Code u OpenCode. La desinstalación conserva las instantáneas de cuentas cifradas y los ajustes de la aplicación para que sigan disponibles tras reinstalarla. El instalador y el ejecutable portátil no están firmados actualmente, por lo que Windows SmartScreen puede mostrar una advertencia de reputación.
 
 ## Funciones
 
 - Interfaz WPF nativa de Windows con un diseño de tarjetas de cristal inspirado en iOS 18.
 - Idiomas integrados: inglés, chino simplificado, chino tradicional, español, francés, alemán, japonés, coreano, portugués de Brasil, ruso, árabe e hindi.
 - Ajustes dentro de la aplicación para elegir el idioma y, opcionalmente, iniciar con Windows para el usuario actual.
-- Perfiles personales y de trabajo con nombre para Codex y Claude Code.
+- Perfiles personales, de trabajo y de sitios API para Codex, Claude Code y OpenCode.
 - Protección por procesos que impide el cambio hasta cerrar las aplicaciones relacionadas.
-- Las credenciales se tratan como bytes opacos: no se analizan tokens, no se extraen correos electrónicos y no se registran credenciales.
+- Los archivos de autenticación siguen siendo bytes opacos. Solo se analizan y fusionan los campos gestionados indicados abajo; los secretos nunca se muestran ni registran.
 - Instantáneas de perfil cifradas con Windows DPAPI para el usuario actual de Windows.
-- Sustitución atómica de credenciales en el mismo directorio, con recuperación ante errores.
+- Sustitución atómica de los archivos gestionados en el mismo directorio, con recuperación ante errores.
 - Confirmación explícita antes de que un inicio de sesión activo modificado sobrescriba la instantánea del último perfil seleccionado.
 - Acción segura **Restaurar instantánea** para el último perfil seleccionado, con una confirmación vinculada a los bytes exactos de autenticación que serán reemplazados.
 - Funcionamiento exclusivamente local, sin análisis ni telemetría.
 - Compilación continua `latest` para Windows generada automáticamente desde `main`.
 
-## Archivos de autenticación compatibles
+## Configuración de cuenta y API compatible
 
-| Proveedor | Archivo de autenticación predeterminado que se cambia | Configuración que no se modifica |
+| Proveedor | Archivos gestionados | Configuración gestionada selectivamente |
 | --- | --- | --- |
-| Codex | `%USERPROFILE%\.codex\auth.json` | `%USERPROFILE%\.codex\config.toml`, habilidades, MCP, sesiones y otros datos |
-| Claude Code | `%USERPROFILE%\.claude\.credentials.json` | `settings.json`, `.claude.json`, complementos, MCP, configuración de proyectos e historial de sesiones |
+| Codex | `%USERPROFILE%\.codex\auth.json` y `config.toml` | `model_provider`, `openai_base_url`, `model`, `review_model`, `model_reasoning_effort`, `disable_response_storage`, la tabla activa seleccionada de `model_providers` y `features.responses_websockets_v2` |
+| Claude Code | `%USERPROFILE%\.claude\.credentials.json` y `settings.json` | Solo `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_API_KEY`, `env.ANTHROPIC_AUTH_TOKEN`, `env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` y el campo de compatibilidad `env.CLAUDE_CODE_ATTRIBUTION_HEADER` |
+| OpenCode | `%USERPROFILE%\.local\share\opencode\auth.json` opcional; capas globales `config.json`, `opencode.json`, `opencode.jsonc`; después `OPENCODE_CONFIG` si está definido | Credenciales opacas de `/connect` y el perfil API efectivo de `provider`, `model` y `small_model` |
 
-Si se define `CODEX_HOME` o `CLAUDE_CONFIG_DIR`, la aplicación usa la raíz de autenticación específica del proveedor. Aun así, solo cambia `auth.json` o `.credentials.json`; los archivos de configuración vecinos no se alteran.
+La aplicación fusiona esos campos sin reemplazar el archivo completo. En Codex conserva `network_access`, `windows_wsl_setup_acknowledged`, `features.goals`, `cli_auth_credentials_store`, MCP, habilidades, sesiones y cualquier otro valor. En Claude Code conserva las demás entradas `env`, `.claude.json`, complementos, MCP, ajustes de proyecto e historial. En OpenCode conserva los valores semánticos no relacionados de cada archivo global o personalizado participante.
+
+La raíz de configuración predeterminada de OpenCode es `%USERPROFILE%\.config` y la raíz de datos predeterminada es `%USERPROFILE%\.local\share`. Un valor absoluto de `XDG_CONFIG_HOME` o `XDG_DATA_HOME` sustituye la raíz predeterminada correspondiente; un valor vacío no la sustituye. Todas las anulaciones de ruta no vacías de OpenCode (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `OPENCODE_CONFIG` y `OPENCODE_CONFIG_DIR`) deben ser absolutas; un valor relativo bloquea la captura y el cambio antes de cualquier escritura. La configuración global se carga desde `opencode\config.json`, `opencode.json` y `opencode.jsonc` bajo la raíz de configuración, en ese orden; cada capa posterior prevalece. `OPENCODE_CONFIG` se carga al final. La aplicación captura el resultado efectivo de `provider`, `model` y `small_model` como un único perfil API. Las credenciales de `/connect` se leen de `opencode\auth.json` bajo la raíz de datos.
+
+OpenCode admite tanto credenciales de `/connect` en su `auth.json` como claves API incluidas en el objeto `provider`; la instantánea guarda el estilo presente, o ambos.
+
+Al aplicar, la aplicación elimina `provider`, `model` y `small_model` de las demás capas globales para impedir que un endpoint antiguo prevalezca. Con `OPENCODE_CONFIG`, escribe allí el destino y limpia las tres capas globales. Sin él, los valores no vacíos se normalizan en `opencode.jsonc` global y se eliminan de `config.json` y `opencode.json`, aunque antes solo existiera JSON o el archivo heredado. Una instantánea solo de autenticación o con configuración gestionada vacía es válida: limpia los valores existentes sin crear un `opencode.jsonc` vacío.
+
+La fusión selectiva conserva los valores semánticos no relacionados, pero no garantiza conservar byte por byte el formato ni los comentarios si se vuelve a serializar JSON o TOML.
+
+Antes de capturar o cambiar OpenCode, la aplicación comprueba en modo de solo lectura las variables de entorno conocidas de mayor prioridad. Un valor no vacío de `OPENCODE_AUTH_CONTENT` bloquea la operación. `OPENCODE_CONFIG_CONTENT` solo se permite si es JSON o JSONC válido y no contiene las claves superiores gestionadas `provider`, `model` o `small_model`; el contenido no válido o cualquiera de esas claves bloquea la operación. Si se define `OPENCODE_CONFIG_DIR`, se comprueban sus archivos `opencode.json` y `opencode.jsonc`; un archivo ilegible o no válido, o una clave gestionada en cualquiera de ellos, bloquea la operación. Se permite la configuración en línea o de directorio que solo contenga claves no relacionadas. La aplicación no modifica ninguna de estas fuentes proporcionadas por el entorno.
+
+`CODEX_HOME` y `CLAUDE_CONFIG_DIR` cambian las raíces respectivas. La configuración OpenCode de proyecto, las fuentes administradas centralmente y las variables de entorno específicas del proveedor siguen sin estar gestionadas y pueden prevalecer sobre el perfil global seleccionado después de un cambio; la aplicación no las busca ni modifica. La protección de procesos comprueba `opencode` y `opencode-cli`. `disable_response_storage`, `features.responses_websockets_v2` y `CLAUDE_CODE_ATTRIBUTION_HEADER` son campos de compatibilidad; no se afirma que todas las versiones actuales los documenten.
 
 Codex debe usar almacenamiento de credenciales basado en archivos. Si su instalación utiliza el almacén de credenciales del sistema operativo, añada este ajuste a `config.toml` en la raíz activa de Codex (`%USERPROFILE%\.codex` de forma predeterminada, o `CODEX_HOME` cuando esté definido):
 
@@ -55,18 +68,22 @@ Consulte la documentación oficial de [autenticación de Codex](https://develope
 
 ## Cómo funciona
 
-1. Inicie sesión en la primera cuenta mediante el flujo oficial del proveedor.
-2. Cierre por completo Codex/Claude Code y cualquier cliente o extensión local relacionado.
-3. Guarde el inicio de sesión actual con una etiqueta elegida por usted, como `Personal`.
-4. Inicie sesión en la segunda cuenta y guárdela con otra etiqueta, como `Work`.
-5. Seleccione un perfil guardado. La aplicación comprueba los procesos relacionados antes de realizar cambios. Si alguno está en ejecución, se bloquea el cambio y no se modifica ningún archivo de credenciales.
-6. Al cambiar a otro perfil, el archivo de autenticación actual se guarda en el último perfil cifrado seleccionado después de una confirmación vinculada a sus bytes, para conservar los tokens renovados. Antes de que el diario quede persistido, esos bytes exactos confirmados previos al cambio también se conservan en un bloque de recuperación exclusivo de la transacción y cifrado con DPAPI.
+1. Inicie sesión mediante el flujo oficial o configure un sitio API compatible en los archivos normales del proveedor.
+2. Cierre por completo Codex, Claude Code, OpenCode y cualquier cliente o extensión relacionado.
+3. Guarde la cuenta y los ajustes API gestionados con una etiqueta como `Personal`.
+4. Inicie sesión en otra cuenta o configure otro sitio API y guárdelo como `Work`.
+5. Seleccione un perfil guardado. Si un proceso relacionado está activo, se bloquea el cambio y no se modifica ningún archivo gestionado.
+6. Tras una confirmación vinculada al contenido, la instantánea gestionada actual se guarda en el último perfil cifrado para conservar tokens renovados y cambios API intencionales. La instantánea exacta previa al cambio también se conserva en un bloque de recuperación DPAPI exclusivo de la transacción.
 
 La aplicación etiqueta ese perfil como **Último seleccionado**, no como «actual verificado». Si el archivo activo ya no coincide con su instantánea, el cambio se detiene antes de escribir. Confirme solo si la modificación es una renovación de la misma cuenta. Si inició sesión en otra cuenta fuera de la aplicación, elija primero **Guardar como nuevo** (o reemplace explícitamente el perfil existente con el nombre correcto).
 
 El botón **Restaurar instantánea** de la tarjeta del último perfil seleccionado comprueba si el archivo activo aún coincide con la instantánea. Si difiere, la aplicación advierte que sustituirá el inicio de sesión actual no guardado y vincula la aprobación a esos bytes exactos. Un inicio de sesión activo distinto no puede reutilizar una confirmación anterior. Durante la restauración, una credencial de recuperación exclusiva de la transacción y cifrada con DPAPI conserva los bytes anteriores hasta confirmar o revertir la operación.
 
-Los cambios de perfil ordinarios usan la misma evidencia de recuperación cifrada cuando el inicio de sesión activo confirmado difiere de su instantánea de origen guardada. Después de una interrupción, la recuperación da prioridad a esos bytes exactos previos al cambio y sincroniza la instantánea de origen si los restaura. Los diarios antiguos sin bloque de recuperación siguen siendo compatibles porque se recurre a la instantánea de origen guardada. Si el archivo activo no coincide ni con el origen conservado ni con el destino, el diario y el bloque de recuperación cifrado permanecen disponibles para una recuperación manual.
+Cada transacción compuesta o de varios archivos guarda la instantánea gestionada actual exacta en el bloque de recuperación cifrado antes del diario, incluso si coincide con el origen guardado. Así puede revertir una escritura parcial y actualizar con seguridad un perfil antiguo que solo contenía credenciales. Tras una interrupción, la recuperación prefiere esa instantánea previa al cambio y sincroniza el perfil de origen si la restaura. Los diarios antiguos sin bloque siguen recurriendo al origen guardado. Si el estado activo no coincide con el origen conservado ni con el destino, el diario y el bloque cifrado permanecen para la recuperación manual.
+
+La confirmación de varios archivos es de cierre seguro: primero elimina la autenticación separada, después fusiona la configuración de forma atómica y, al final, instala la autenticación de destino. Una interrupción puede dejar la autenticación ausente, pero nunca combina credenciales con el endpoint del perfil opuesto; la recuperación termina o revierte desde la instantánea cifrada previa.
+
+Los perfiles antiguos sin formato compuesto de Codex y Claude Code se interpretan como credenciales más una configuración API gestionada vacía. Al activarlos se borran los campos gestionados de ruta API y modelo para no reutilizar un endpoint externo del perfil anterior. Después, configure el modelo/API deseado y vuelva a capturar el perfil. Un perfil antiguo que era el origen activo se actualiza al formato compuesto al abandonarlo.
 
 La aplicación no garantiza que una sesión dure indefinidamente. Una revocación del proveedor, una política de la organización, SSO, MFA o el vencimiento del token aún pueden requerir un inicio de sesión normal en el cliente oficial.
 
@@ -79,12 +96,12 @@ Abra **Ajustes** desde la ventana de la aplicación para elegir el idioma o cont
 ## Modelo de seguridad
 
 - Los perfiles cifrados se almacenan bajo `%LOCALAPPDATA%\CodingAgentAccountSwitcher`.
-- Cada ubicación normalizada del archivo de autenticación tiene un almacén, estado activo, diario de recuperación y mutex independientes, delimitados por un hash. Cambiar `CODEX_HOME` o `CLAUDE_CONFIG_DIR` inicia por tanto un conjunto de perfiles independiente, sin reutilizar la cuenta activa de otra ubicación.
+- Cada conjunto normalizado de archivos gestionados tiene un almacén, estado, diario y mutex independientes. Cambiar `CODEX_HOME`, `CLAUDE_CONFIG_DIR` u `OPENCODE_CONFIG` inicia otro conjunto de perfiles.
 - DPAPI `CurrentUser` impide que otra cuenta de Windows descifre directamente el perfil, pero no protege frente a software malicioso que ya se ejecute como el mismo usuario.
 - Aparte del archivo activo normal del proveedor, los bytes descifrados solo existen brevemente en memoria y en la sustitución atómica del mismo directorio durante la captura o el cambio.
 - Los archivos temporales y de copia de seguridad de la sustitución usan el ID de la transacción de recuperación. Al terminar normalmente se eliminan ambos archivos exactos. Tras una interrupción, la recuperación restaura un archivo activo ausente desde la instantánea de origen cifrada o la credencial de recuperación exclusiva de la transacción, elimina todos los archivos de preparación que pertenecen exactamente a esa transacción y luego borra el diario. El bloque de recuperación cifrado se elimina únicamente después del diario y como una operación de mejor esfuerzo.
 - La aplicación no carga credenciales, que nunca deben incluirse en registros, incidencias, informes de fallos, datos de prueba ni commits del repositorio.
-- La detección de procesos es defensiva y de mejor esfuerzo. Un proceso recién iniciado puede competir con el cambio; no abra Codex ni Claude Code hasta que termine la operación.
+- La detección de procesos es defensiva y de mejor esfuerzo. No abra Codex, Claude Code ni OpenCode hasta que termine la operación.
 - Si una organización administra su cuenta de trabajo, obtenga autorización antes de conservar otra instantánea local cifrada.
 
 Lea [SECURITY.md](SECURITY.md) y [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) antes de modificar el código que gestiona credenciales.
@@ -129,7 +146,7 @@ El instalador y el ejecutable portátil continuos no están firmados actualmente
 
 ## Contribuir
 
-Las contribuciones son bienvenidas. Lea [CONTRIBUTING.md](CONTRIBUTING.md). Las pruebas deben usar archivos de credenciales falsos y temporales; nunca deben acceder a los archivos reales de autenticación de Codex o Claude Code de un desarrollador.
+Las contribuciones son bienvenidas. Lea [CONTRIBUTING.md](CONTRIBUTING.md). Las pruebas deben usar credenciales y configuraciones sintéticas temporales; nunca deben acceder a archivos reales de Codex, Claude Code u OpenCode.
 
 ## Licencia
 

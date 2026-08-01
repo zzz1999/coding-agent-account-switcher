@@ -120,7 +120,7 @@ public sealed class AccountSwitchService
         var authenticationFileRead = false;
         try
         {
-            currentCredential = ReadAuthenticationFile(adapter.AuthenticationFilePath);
+            currentCredential = adapter.ReadSnapshot();
             authenticationFileRead = true;
             var finalInspection = _processInspector.Inspect(adapter);
             if (finalInspection.Status != ProcessInspectionStatus.Clear)
@@ -270,22 +270,28 @@ public sealed class AccountSwitchService
         SwitchTransactionJournal? journal = null;
         var journalWritten = false;
         var recoveryCredentialWritten = false;
+        var sourceSnapshotNeedsUpgrade = false;
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             targetCredential = _vault.LoadCredential(adapter.Provider, targetProfileId);
-            currentCredential = ReadAuthenticationFile(adapter.AuthenticationFilePath);
+            currentCredential = adapter.ReadSnapshot();
             if (!isSavedSnapshotRestore)
             {
                 sourceCredential = _vault.LoadCredential(adapter.Provider, activeState.ProfileId);
+                sourceSnapshotNeedsUpgrade = adapter.IsLegacySnapshot(sourceCredential);
             }
 
-            var activeProfileChanged = !BytesEqual(
+            var activeProfileChanged = !adapter.SnapshotsEqual(
                 currentCredential,
                 isSavedSnapshotRestore ? targetCredential : sourceCredential!);
             if (!activeProfileChanged && isSavedSnapshotRestore)
             {
+                if (adapter.IsLegacySnapshot(targetCredential))
+                {
+                    _vault.UpdateCredential(adapter.Provider, targetProfileId, currentCredential);
+                }
                 return new SwitchProfileResult
                 {
                     Status = AccountOperationStatus.AlreadyActive,
@@ -325,18 +331,22 @@ public sealed class AccountSwitchService
 
             // Bind a confirmation to the exact bytes that were inspected. If anything changed
             // while the confirmation dialog was open, require a fresh confirmation.
-            latestCredential = ReadAuthenticationFile(adapter.AuthenticationFilePath);
-            if (!BytesEqual(currentCredential, latestCredential))
+            latestCredential = adapter.ReadSnapshot();
+            if (!adapter.SnapshotsEqual(currentCredential, latestCredential))
             {
                 CryptographicOperations.ZeroMemory(currentCredential);
                 currentCredential = latestCredential;
                 latestCredential = null;
-                activeProfileChanged = !BytesEqual(
+                activeProfileChanged = !adapter.SnapshotsEqual(
                     currentCredential,
                     isSavedSnapshotRestore ? targetCredential : sourceCredential!);
 
                 if (!activeProfileChanged && isSavedSnapshotRestore)
                 {
+                    if (adapter.IsLegacySnapshot(targetCredential))
+                    {
+                        _vault.UpdateCredential(adapter.Provider, targetProfileId, currentCredential);
+                    }
                     return new SwitchProfileResult
                     {
                         Status = AccountOperationStatus.AlreadyActive,
@@ -388,11 +398,11 @@ public sealed class AccountSwitchService
                 StartedAtUtc = _vault.TimeProvider.GetUtcNow()
             };
 
-            if (isSavedSnapshotRestore || activeProfileChanged)
+            if (isSavedSnapshotRestore || activeProfileChanged || adapter.ManagedFilePaths.Count > 1)
             {
                 // Preserve the exact confirmed pre-switch bytes before the journal is
-                // made durable. This also covers a refreshed source profile whose
-                // persisted snapshot has not been updated yet.
+                // made durable. Composite adapters always preserve it because a legacy
+                // authentication-only source lacks the config required for exact rollback.
                 _vault.WriteTransactionRecoveryCredential(
                     adapter.Provider,
                     journal.TransactionId,
@@ -407,8 +417,8 @@ public sealed class AccountSwitchService
             {
                 try
                 {
-                    _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                        adapter.AuthenticationFilePath,
+                    adapter.DeleteOwnedTransactionFiles(
+                        _vault.AtomicWriter,
                         journal.TransactionId);
                     _vault.DeletePendingJournal(adapter.Provider);
                     if (recoveryCredentialWritten)
@@ -439,16 +449,17 @@ public sealed class AccountSwitchService
                 };
             }
 
-            if (!isSavedSnapshotRestore && activeProfileChanged)
+            if (!isSavedSnapshotRestore && (activeProfileChanged || sourceSnapshotNeedsUpgrade))
             {
                 // Persist a confirmed token refresh only after the last process-safety
-                // check has authorized the transaction to commit.
+                // check has authorized the transaction to commit. This also upgrades
+                // authentication-only profiles to the composite snapshot schema.
                 _vault.UpdateCredential(adapter.Provider, activeState.ProfileId, currentCredential);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            _vault.AtomicWriter.WriteAllBytes(
-                adapter.AuthenticationFilePath,
+            adapter.WriteSnapshot(
+                _vault.AtomicWriter,
                 targetCredential,
                 journal.TransactionId);
             _vault.WritePendingJournal(journal with { Phase = SwitchJournalPhase.TargetInstalled });
@@ -460,8 +471,8 @@ public sealed class AccountSwitchService
                 ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
             });
             _vault.MarkActivated(adapter.Provider, targetProfileId);
-            _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                adapter.AuthenticationFilePath,
+            adapter.DeleteOwnedTransactionFiles(
+                _vault.AtomicWriter,
                 journal.TransactionId);
             if (recoveryCredentialWritten)
             {
@@ -548,11 +559,11 @@ public sealed class AccountSwitchService
             {
                 if (currentCredential is not null && journal is not null)
                 {
-                    _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                        adapter.AuthenticationFilePath,
+                    adapter.DeleteOwnedTransactionFiles(
+                        _vault.AtomicWriter,
                         journal.TransactionId);
-                    _vault.AtomicWriter.WriteAllBytes(
-                        adapter.AuthenticationFilePath,
+                    adapter.WriteSnapshot(
+                        _vault.AtomicWriter,
                         currentCredential,
                         journal.TransactionId);
                 }
@@ -560,8 +571,8 @@ public sealed class AccountSwitchService
                 _vault.WriteActiveProfile(activeState);
                 if (journal is not null)
                 {
-                    _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                        adapter.AuthenticationFilePath,
+                    adapter.DeleteOwnedTransactionFiles(
+                        _vault.AtomicWriter,
                         journal.TransactionId);
                 }
 
@@ -694,7 +705,7 @@ public sealed class AccountSwitchService
 
             try
             {
-                currentCredential = ReadAuthenticationFile(adapter.AuthenticationFilePath);
+                currentCredential = adapter.ReadSnapshot(allowIncomplete: true);
             }
             catch (FileNotFoundException)
             {
@@ -710,11 +721,11 @@ public sealed class AccountSwitchService
                     };
                 }
 
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
-                _vault.AtomicWriter.WriteAllBytes(
-                    adapter.AuthenticationFilePath,
+                adapter.WriteSnapshot(
+                    _vault.AtomicWriter,
                     sourceCredential,
                     journal.TransactionId);
                 CompleteProfileSwitchSourceRecovery(
@@ -742,7 +753,7 @@ public sealed class AccountSwitchService
                 };
             }
 
-            if (BytesEqual(currentCredential, sourceCredential))
+            if (adapter.SnapshotsEqual(currentCredential, sourceCredential))
             {
                 CompleteProfileSwitchSourceRecovery(
                     adapter,
@@ -758,7 +769,7 @@ public sealed class AccountSwitchService
             }
 
             targetCredential = _vault.LoadCredential(adapter.Provider, journal.TargetProfileId);
-            if (BytesEqual(currentCredential, targetCredential))
+            if (adapter.SnapshotsEqual(currentCredential, targetCredential))
             {
                 _vault.WriteActiveProfile(new ActiveProfileState
                 {
@@ -767,8 +778,8 @@ public sealed class AccountSwitchService
                     ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
                 });
                 _vault.MarkActivated(adapter.Provider, journal.TargetProfileId);
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
                 _vault.DeletePendingJournal(adapter.Provider);
                 if (sourceCredentialCameFromRecovery)
@@ -783,14 +794,41 @@ public sealed class AccountSwitchService
                 };
             }
 
-            _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                adapter.AuthenticationFilePath,
+            if (journal.Phase == SwitchJournalPhase.Prepared &&
+                adapter.ManagedFilePaths.Count > 1 &&
+                adapter.IsRecognizedPartialSnapshot(sourceCredential, targetCredential, currentCredential))
+            {
+                // A composite snapshot can span more than one file. A crash between
+                // those atomic file replacements yields a deliberate partial state;
+                // the durable source snapshot is therefore authoritative in Prepared.
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
+                    journal.TransactionId);
+                adapter.WriteSnapshot(
+                    _vault.AtomicWriter,
+                    sourceCredential,
+                    journal.TransactionId);
+                CompleteProfileSwitchSourceRecovery(
+                    adapter,
+                    journal,
+                    sourceCredential,
+                    sourceCredentialCameFromRecovery);
+                return new RecoveryResult
+                {
+                    Status = RecoveryStatus.RecoveredToSource,
+                    ActiveProfileId = journal.SourceProfileId,
+                    ProcessInspection = inspection
+                };
+            }
+
+            adapter.DeleteOwnedTransactionFiles(
+                _vault.AtomicWriter,
                 journal.TransactionId);
             return new RecoveryResult
             {
                 Status = RecoveryStatus.ManualInterventionRequired,
                 ProcessInspection = inspection,
-                ErrorMessage = "The authentication file matches neither side of the interrupted switch."
+                ErrorMessage = "The managed account files match neither side of the interrupted switch."
             };
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -829,8 +867,8 @@ public sealed class AccountSwitchService
             ProfileId = journal.SourceProfileId,
             ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
         });
-        _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-            adapter.AuthenticationFilePath,
+        adapter.DeleteOwnedTransactionFiles(
+            _vault.AtomicWriter,
             journal.TransactionId);
         _vault.DeletePendingJournal(adapter.Provider);
         if (sourceCredentialCameFromRecovery)
@@ -855,7 +893,7 @@ public sealed class AccountSwitchService
 
             try
             {
-                currentCredential = ReadAuthenticationFile(adapter.AuthenticationFilePath);
+                currentCredential = adapter.ReadSnapshot(allowIncomplete: true);
             }
             catch (FileNotFoundException)
             {
@@ -874,11 +912,11 @@ public sealed class AccountSwitchService
                 recoveryCredential = _vault.LoadTransactionRecoveryCredential(
                     adapter.Provider,
                     journal.TransactionId);
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
-                _vault.AtomicWriter.WriteAllBytes(
-                    adapter.AuthenticationFilePath,
+                adapter.WriteSnapshot(
+                    _vault.AtomicWriter,
                     recoveryCredential,
                     journal.TransactionId);
                 _vault.WriteActiveProfile(new ActiveProfileState
@@ -887,8 +925,8 @@ public sealed class AccountSwitchService
                     ProfileId = journal.SourceProfileId,
                     ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
                 });
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
                 _vault.DeletePendingJournal(adapter.Provider);
                 TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
@@ -912,7 +950,7 @@ public sealed class AccountSwitchService
                 };
             }
 
-            if (BytesEqual(currentCredential, targetCredential))
+            if (adapter.SnapshotsEqual(currentCredential, targetCredential))
             {
                 _vault.WriteActiveProfile(new ActiveProfileState
                 {
@@ -921,8 +959,8 @@ public sealed class AccountSwitchService
                     ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
                 });
                 _vault.MarkActivated(adapter.Provider, journal.TargetProfileId);
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
                 _vault.DeletePendingJournal(adapter.Provider);
                 TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
@@ -937,7 +975,7 @@ public sealed class AccountSwitchService
             recoveryCredential = _vault.LoadTransactionRecoveryCredential(
                 adapter.Provider,
                 journal.TransactionId);
-            if (BytesEqual(currentCredential, recoveryCredential))
+            if (adapter.SnapshotsEqual(currentCredential, recoveryCredential))
             {
                 _vault.WriteActiveProfile(new ActiveProfileState
                 {
@@ -945,8 +983,8 @@ public sealed class AccountSwitchService
                     ProfileId = journal.SourceProfileId,
                     ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
                 });
-                _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                    adapter.AuthenticationFilePath,
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
                     journal.TransactionId);
                 _vault.DeletePendingJournal(adapter.Provider);
                 TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
@@ -960,8 +998,38 @@ public sealed class AccountSwitchService
 
             // The encrypted pre-restore bytes remain available for manual recovery, so exact
             // transaction-owned plaintext staging files can be removed safely.
-            _vault.AtomicWriter.DeleteOwnedTransactionFiles(
-                adapter.AuthenticationFilePath,
+            if (journal.Phase == SwitchJournalPhase.Prepared &&
+                adapter.ManagedFilePaths.Count > 1 &&
+                adapter.IsRecognizedPartialSnapshot(recoveryCredential, targetCredential, currentCredential))
+            {
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
+                    journal.TransactionId);
+                adapter.WriteSnapshot(
+                    _vault.AtomicWriter,
+                    recoveryCredential,
+                    journal.TransactionId);
+                _vault.WriteActiveProfile(new ActiveProfileState
+                {
+                    Provider = adapter.Provider,
+                    ProfileId = journal.SourceProfileId,
+                    ActivatedAtUtc = _vault.TimeProvider.GetUtcNow()
+                });
+                adapter.DeleteOwnedTransactionFiles(
+                    _vault.AtomicWriter,
+                    journal.TransactionId);
+                _vault.DeletePendingJournal(adapter.Provider);
+                TryDeleteTransactionRecoveryCredential(adapter.Provider, journal.TransactionId);
+                return new RecoveryResult
+                {
+                    Status = RecoveryStatus.RecoveredToSource,
+                    ActiveProfileId = journal.SourceProfileId,
+                    ProcessInspection = inspection
+                };
+            }
+
+            adapter.DeleteOwnedTransactionFiles(
+                _vault.AtomicWriter,
                 journal.TransactionId);
             return new RecoveryResult
             {
@@ -1020,37 +1088,6 @@ public sealed class AccountSwitchService
             throw;
         }
     }
-
-    private static byte[] ReadAuthenticationFile(string path)
-    {
-        using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.None,
-            bufferSize: 1,
-            options: FileOptions.SequentialScan);
-        if (stream.Length <= 0 || stream.Length > AuthenticationProfileVault.MaximumCredentialSizeBytes ||
-            stream.Length > int.MaxValue)
-        {
-            throw new InvalidDataException("The authentication file has an invalid size.");
-        }
-
-        var bytes = new byte[(int)stream.Length];
-        try
-        {
-            stream.ReadExactly(bytes);
-            return bytes;
-        }
-        catch
-        {
-            CryptographicOperations.ZeroMemory(bytes);
-            throw;
-        }
-    }
-
-    private static bool BytesEqual(byte[] left, byte[] right) =>
-        left.Length == right.Length && CryptographicOperations.FixedTimeEquals(left, right);
 
     private static string CreateFingerprint(byte[] credential)
     {

@@ -186,6 +186,8 @@ public sealed class AuthenticationProfileVaultTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 
     private sealed class CommitThenFailActiveStateAndRejectRollbackWriter : IAtomicFileWriter
@@ -213,5 +215,7 @@ public sealed class AuthenticationProfileVaultTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 }

@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         {
             new CodexAuthenticationAdapter(),
             new ClaudeCodeAuthenticationAdapter(),
+            new OpenCodeAuthenticationAdapter(),
         };
         _contexts = adapters.ToDictionary(
             adapter => adapter.Provider,
@@ -177,9 +178,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        ShowProvider(ReferenceEquals(sender, ClaudeSegment)
+        var provider = ReferenceEquals(sender, ClaudeSegment)
             ? AgentProvider.ClaudeCode
-            : AgentProvider.Codex);
+            : ReferenceEquals(sender, OpenCodeSegment)
+                ? AgentProvider.OpenCode
+                : AgentProvider.Codex;
+        ShowProvider(provider);
     }
 
     private bool ShowProvider(AgentProvider provider)
@@ -188,8 +192,8 @@ public partial class MainWindow : Window
         var adapter = _contexts[provider].Adapter;
         ProviderTitle.Text = T("Provider.Accounts", ProviderDisplayName(provider));
         ProviderDescription.Text = T(
-            "Provider.AuthenticationFile",
-            FormatAuthenticationPath(adapter.AuthenticationFilePath));
+            "Provider.ManagedFiles",
+            string.Join("  ·  ", adapter.ManagedFilePaths.Select(FormatAuthenticationPath)));
 
         if (ReloadProfiles(provider))
         {
@@ -245,12 +249,11 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    var authenticationFileExists = System.IO.File.Exists(
-                        _contexts[provider].Adapter.AuthenticationFilePath);
-                    EmptyStateTitle.Text = authenticationFileExists
+                    var currentSnapshotExists = _contexts[provider].Adapter.HasCurrentSnapshot;
+                    EmptyStateTitle.Text = currentSnapshotExists
                         ? T("Empty.LoginDetected.Title")
                         : T("Empty.NoLogin.Title");
-                    EmptyStateMessage.Text = authenticationFileExists
+                    EmptyStateMessage.Text = currentSnapshotExists
                         ? T("Empty.LoginDetected.Message")
                         : T("Empty.NoLogin.Message");
                 }
@@ -265,7 +268,9 @@ public partial class MainWindow : Window
             EmptyStatePanel.Visibility = Visibility.Visible;
             EmptyStateTitle.Text = T("Empty.Unavailable.Title");
             EmptyStateMessage.Text = T("Empty.Unavailable.Message");
-            SetStatus(T("Status.ProfilesLoadFailed", exception.Message), StatusTone.Error);
+            SetStatus(
+                T("Status.ProfilesLoadFailed", LocalizeOperationError(exception.Message)),
+                StatusTone.Error);
             return false;
         }
     }
@@ -455,7 +460,9 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
             CloseProcessDialog();
-            SetStatus(T("Status.SaveException", exception.Message), StatusTone.Error);
+            SetStatus(
+                T("Status.SaveException", LocalizeOperationError(exception.Message)),
+                StatusTone.Error);
             return;
         }
 
@@ -559,7 +566,9 @@ public partial class MainWindow : Window
         {
             SetBusy(false);
             CloseProcessDialog();
-            SetStatus(T("Status.SwitchException", exception.Message), StatusTone.Error);
+            SetStatus(
+                T("Status.SwitchException", LocalizeOperationError(exception.Message)),
+                StatusTone.Error);
             return;
         }
 
@@ -1178,8 +1187,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private string ProviderDisplayName(AgentProvider provider) =>
-        T(provider == AgentProvider.Codex ? "Provider.Codex" : "Provider.ClaudeCode");
+    private string ProviderDisplayName(AgentProvider provider) => T(provider switch
+    {
+        AgentProvider.Codex => "Provider.Codex",
+        AgentProvider.ClaudeCode => "Provider.ClaudeCode",
+        AgentProvider.OpenCode => "Provider.OpenCode",
+        _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null),
+    });
 
     private static ProviderContext CreateProviderContext(
         string storageRoot,
@@ -1204,10 +1218,39 @@ public partial class MainWindow : Window
             : path;
     }
 
-    private string BuildFailureMessage(string prefix, string? errorMessage) =>
-        string.IsNullOrWhiteSpace(errorMessage)
+    private string BuildFailureMessage(string prefix, string? errorMessage)
+    {
+        var localizedError = LocalizeOperationError(errorMessage);
+        return string.IsNullOrWhiteSpace(localizedError)
             ? T("Failure.WithoutDetail", prefix)
-            : T("Failure.WithDetail", prefix, errorMessage);
+            : T("Failure.WithDetail", prefix, localizedError);
+    }
+
+    private string? LocalizeOperationError(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return errorMessage;
+        }
+
+        foreach (var environmentVariable in new[]
+                 {
+                     "OPENCODE_AUTH_CONTENT",
+                     "OPENCODE_CONFIG_CONTENT",
+                     "OPENCODE_CONFIG_DIR",
+                     "OPENCODE_CONFIG",
+                     "XDG_CONFIG_HOME",
+                     "XDG_DATA_HOME"
+                 })
+        {
+            if (errorMessage.Contains(environmentVariable, StringComparison.Ordinal))
+            {
+                return T("Status.OpenCodeOverrideBlocked", environmentVariable);
+            }
+        }
+
+        return errorMessage;
+    }
 
     private string T(string key, params object?[] arguments) => _localization.Get(key, arguments);
 
@@ -1288,8 +1331,13 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
 
     public string Initials => CreateInitials(Name);
 
-    public string Subtitle => _localization.Get(
-        Provider == AgentProvider.Codex ? "Card.CodexProfile" : "Card.ClaudeProfile");
+    public string Subtitle => _localization.Get(Provider switch
+    {
+        AgentProvider.Codex => "Card.CodexProfile",
+        AgentProvider.ClaudeCode => "Card.ClaudeProfile",
+        AgentProvider.OpenCode => "Card.OpenCodeProfile",
+        _ => throw new ArgumentOutOfRangeException(nameof(Provider), Provider, null),
+    });
 
     public string LastSavedText => _localization.Get(
         "Card.SavedAt",

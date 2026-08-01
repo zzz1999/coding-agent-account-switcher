@@ -3,7 +3,8 @@ namespace CodingAgentAccountSwitcher.Core;
 public enum AgentProvider
 {
     Codex,
-    ClaudeCode
+    ClaudeCode,
+    OpenCode
 }
 
 internal static class AgentProviderExtensions
@@ -12,6 +13,7 @@ internal static class AgentProviderExtensions
     {
         AgentProvider.Codex => "codex",
         AgentProvider.ClaudeCode => "claude-code",
+        AgentProvider.OpenCode => "opencode",
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
     };
 }

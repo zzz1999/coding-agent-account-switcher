@@ -396,6 +396,11 @@
                                                  Style="{StaticResource Style.SegmentedItem}"
                                                  Checked="ProviderSegment_Checked"
                                                  Content="{DynamicResource L.Provider.ClaudeCode}" />
+                                    <RadioButton x:Name="OpenCodeSegment"
+                                                 GroupName="Provider"
+                                                 Style="{StaticResource Style.SegmentedItem}"
+                                                 Checked="ProviderSegment_Checked"
+                                                 Content="{DynamicResource L.Provider.OpenCode}" />
                                 </StackPanel>
                             </Border>
                             <Button x:Name="SaveCurrentLoginButton"

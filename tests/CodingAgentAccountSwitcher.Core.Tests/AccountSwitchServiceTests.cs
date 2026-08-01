@@ -829,7 +829,12 @@ public sealed class AccountSwitchServiceTests
         out string configurationPath)
     {
         var userProfile = System.IO.Path.Combine(root, "user");
-        var adapter = new CodexAuthenticationAdapter(userProfile);
+        // Most transaction tests exercise the legacy single-file contract with
+        // arbitrary binary fixtures. API-configuration behavior has dedicated
+        // composite-snapshot tests below.
+        var adapter = new CodexAuthenticationAdapter(
+            userProfile,
+            manageApiConfiguration: false);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(adapter.AuthenticationFilePath)!);
         authenticationPath = adapter.AuthenticationFilePath;
         configurationPath = System.IO.Path.Combine(userProfile, ".codex", "config.toml");
@@ -897,6 +902,8 @@ public sealed class AccountSwitchServiceTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 
     private sealed class ThrowAfterAuthenticationCommitWriter : IAtomicFileWriter
@@ -924,6 +931,8 @@ public sealed class AccountSwitchServiceTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 
     private sealed class FailStateAndRollbackWriter : IAtomicFileWriter
@@ -962,6 +971,8 @@ public sealed class AccountSwitchServiceTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 
     private sealed class CancelAfterPreparedJournalCommitWriter : IAtomicFileWriter
@@ -984,5 +995,7 @@ public sealed class AccountSwitchServiceTests
 
         public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
             _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
     }
 }

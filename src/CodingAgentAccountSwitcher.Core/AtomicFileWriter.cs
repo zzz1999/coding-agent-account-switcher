@@ -4,6 +4,8 @@ public interface IAtomicFileWriter
 {
     void WriteAllBytes(string destinationPath, byte[] contents, Guid? transactionId = null);
 
+    void DeleteFile(string destinationPath);
+
     void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId);
 }
 
@@ -90,6 +92,16 @@ public sealed class AtomicFileWriter : IAtomicFileWriter
         if (File.Exists(backupPath))
         {
             File.Delete(backupPath);
+        }
+    }
+
+    public void DeleteFile(string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        var fullDestinationPath = Path.GetFullPath(destinationPath);
+        if (File.Exists(fullDestinationPath))
+        {
+            File.Delete(fullDestinationPath);
         }
     }
 
