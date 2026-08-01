@@ -179,6 +179,14 @@ before any write. Confirm only when the change is a refresh for the same account
 signed in to a different account outside the app, choose **Save as new** (or
 explicitly replace the correctly named existing profile) first.
 
+Profile rename and delete actions operate only on the local encrypted snapshot
+vault. Renaming changes the saved label and metadata without changing snapshot
+contents. Deleting removes only the selected encrypted snapshot; deleting the
+last-selected profile also clears the app's active-profile association, but it
+does not sign out or modify any live provider authentication or configuration
+file. Save the current account before switching again. Both actions are refused
+while an interrupted switch transaction is pending recovery.
+
 The **Restore snapshot** button on the last selected card checks whether the
 live managed snapshot still matches the saved snapshot. If it differs, the app
 warns that the current unsaved state will be replaced and binds approval to
@@ -222,6 +230,13 @@ current Windows user and does not require administrator privileges. Turning the
 option off removes only the startup entry owned by Coding Agent Account
 Switcher; it does not alter other startup applications.
 
+**Check for updates** is entirely user initiated. Only after the user clicks it,
+the app sends one anonymous HTTPS `GET` request to the official GitHub API for
+this repository. There are no startup, background, or periodic update checks,
+and the request does not upload credentials, settings, profile labels, machine
+identifiers, or application telemetry. The app only compares release metadata;
+it never automatically downloads or executes an installer or portable build.
+
 ## Security model
 
 - Encrypted profile data is stored below `%LOCALAPPDATA%\CodingAgentAccountSwitcher`.
@@ -244,6 +259,13 @@ Switcher; it does not alter other startup applications.
   recovery blob is deleted only after the journal, on a best-effort basis.
 - The application does not upload credentials and must never include them in a
   log, issue, crash report, test fixture, or repository commit.
+- Profile rename and delete actions change only the local encrypted vault.
+  Deleting the last-selected profile clears only its local association and does
+  not modify the live provider files. A pending recovery transaction blocks both
+  actions.
+- Update discovery is a single anonymous request to the official GitHub API
+  after an explicit user click. It never runs in the background and never
+  automatically downloads or executes release assets.
 - Process detection is defensive and best-effort. A newly started process can
   race with a switch, so users should not launch Codex, Claude Code, or OpenCode
   until the operation completes.
@@ -286,7 +308,14 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 4. Prepare the portable executable and SHA-256 checksums for both executables.
 5. Delete only the previous release and tag named `latest`.
 6. Publish a new `latest` release with the installer, portable executable, and
-   checksums for the current commit.
+   checksums for the current commit. One workflow `APP_VERSION` value versions
+   the executable and writes this exact machine-readable Release-note marker:
+   `<!-- coding-agent-account-switcher-version: 0.1.N -->`.
+
+The `latest` tag is intentionally rolling, so the application reads that marker
+from the official GitHub Release API response when the user explicitly checks
+for updates. It does not check in the background or automatically download or
+execute any asset.
 
 Versioned releases are never deleted by this workflow. GitHub's **immutable
 releases** option must remain disabled for the rolling `latest` tag, and branch

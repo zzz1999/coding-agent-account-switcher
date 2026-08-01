@@ -89,11 +89,15 @@ cli_auth_credentials_store = "file"
 
 应用不保证登录永久有效。服务端撤销、组织政策、SSO、MFA 或令牌过期仍可能要求你通过官方客户端正常登录。
 
+重命名和删除资料只会操作本地加密快照库。重命名只改变已保存的名称和元数据，不改变快照内容；删除只移除选中的本地加密快照。删除“上次选择”的资料还会清除应用内的活动资料关联，但不会退出登录，也不会修改提供商的实时认证或配置文件。再次切换前请先保存当前账号。若中断的切换事务仍待恢复，这两项操作都会被拒绝。
+
 ## 设置
 
 从应用窗口打开 **设置**，即可选择显示语言或控制应用是否随 Windows 启动。所选语言仅为当前 Windows 用户保存在本地，并可随时再次更改。
 
 **随 Windows 启动** 会在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下添加本应用的条目。它只对当前 Windows 用户生效，不需要管理员权限。关闭此选项只会删除 Coding Agent Account Switcher 自己的启动条目，不会修改其他启动应用。
+
+**检查更新** 完全由用户主动触发。只有点击该按钮后，应用才会向本仓库的官方 GitHub API 发送一次匿名 HTTPS `GET` 请求；启动时、后台或定时均不会检查更新。请求不会上传凭据、设置、资料名称、设备标识符或应用遥测。应用只比较 Release 元数据，绝不会自动下载或运行安装程序或便携版。
 
 ## 安全模型
 
@@ -140,7 +144,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 3. 构建面向当前用户的 Windows x64 安装程序。
 4. 准备便携版可执行文件，并为安装程序和便携版分别生成 SHA-256 校验和。
 5. 只删除先前名为 `latest` 的 Release 和标签。
-6. 为当前提交创建新的 `latest` Release，并发布安装程序、便携版可执行文件和校验文件。
+6. 为当前提交创建新的 `latest` Release，并发布安装程序、便携版可执行文件和校验文件。工作流使用同一个 `APP_VERSION` 为可执行文件设置版本，并在 Release 说明中写入精确的机器可读标记：`<!-- coding-agent-account-switcher-version: 0.1.N -->`。
+
+由于 `latest` 标签会滚动更新，只有用户主动检查更新时，应用才会从官方 GitHub Release API 响应中读取该标记。它不会在后台检查，也不会自动下载或运行任何发布资产。
 
 此工作流绝不会删除带版本号的 Release。滚动 `latest` 标签要求关闭 GitHub 的 **immutable releases** 选项，并且分支或标签规则必须允许工作流删除 `latest`。要求不可变 Release 的仓库应把工作流改为使用唯一的构建标签。
 

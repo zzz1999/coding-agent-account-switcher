@@ -17,6 +17,8 @@ jobs:
   build-and-release:
     if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
+    env:
+      APP_VERSION: 0.1.${{ github.run_number }}
 
     steps:
       - name: Check out repository
@@ -54,7 +56,7 @@ jobs:
             -p:EnableCompressionInSingleFile=true `
             -p:DebugType=None `
             -p:DebugSymbols=false `
-            -p:Version=0.1.${{ github.run_number }}
+            "-p:Version=$env:APP_VERSION"
 
       - name: Prepare portable executable
         shell: pwsh
@@ -303,6 +305,9 @@ jobs:
             }
           }
 
+          $versionMarker = "<!-- coding-agent-account-switcher-version: $env:APP_VERSION -->"
+          $releaseNotes = "Automated build version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer and a portable executable.`n`n$versionMarker"
+
           gh release create latest `
             "$env:INSTALLER_PATH" `
             "$env:INSTALLER_CHECKSUM_PATH" `
@@ -310,7 +315,7 @@ jobs:
             "$env:PORTABLE_CHECKSUM_PATH" `
             --target "$env:GITHUB_SHA" `
             --title 'Latest Windows build' `
-            --notes "Automated build from main commit $env:GITHUB_SHA. Includes a per-user installer and a portable executable." `
+            --notes "$releaseNotes" `
             --latest
           if ($LASTEXITCODE -ne 0) {
             throw 'Failed to create the latest release.'

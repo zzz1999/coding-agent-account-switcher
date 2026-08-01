@@ -74,6 +74,32 @@ storage and cross-user access, not to replace endpoint security.
   Never overwrite or delete an unexpected startup value.
 - Treat a startup-registration failure as a failed setting change: preserve the
   previous preference and report the error without changing authentication data.
+- Treat profile rename and delete as vault-only metadata operations. Renaming
+  must preserve the profile ID, encrypted snapshot bytes, and live provider
+  files. Deleting must remove only the selected encrypted local snapshot and
+  metadata. If it was last selected, clear the local active-profile association
+  without signing out or modifying any live provider authentication or
+  configuration file.
+- Refuse profile rename and delete while a recovery journal is pending. Local
+  profile management must never bypass or discard transaction evidence.
+
+## Update-check and release-metadata requirements
+
+- Update checks occur only after the user explicitly selects **Check for
+  updates**. One anonymous HTTPS `GET` is sent to the official GitHub API for
+  this repository; there are no startup, background, scheduled, or periodic
+  checks.
+- The request carries no provider credentials, application settings, profile
+  labels, local profile identifiers, machine identifier, or application
+  telemetry. GitHub can still observe ordinary network metadata such as the
+  source IP address and HTTP headers needed to serve the request.
+- Update discovery compares release metadata only. The application never
+  automatically downloads or executes an installer, portable executable, or
+  any other Release asset.
+- The rolling Release workflow must use one `APP_VERSION` value for the built
+  executable and publish the exact machine-readable Release-note marker
+  `<!-- coding-agent-account-switcher-version: 0.1.N -->`. Treat this marker as
+  an external update-discovery contract.
 
 ## Managed provider fields
 

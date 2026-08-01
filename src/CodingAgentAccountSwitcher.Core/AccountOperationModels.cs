@@ -66,3 +66,25 @@ public sealed record RecoveryResult
 
     public string? ErrorMessage { get; init; }
 }
+
+public enum ProfileManagementStatus
+{
+    Success,
+    ProfileNotFound,
+    DisplayNameConflict,
+    ActiveProfileConfirmationRequired,
+    LockUnavailable,
+    RecoveryRequired,
+    Failed,
+}
+
+public sealed record ProfileManagementResult
+{
+    public required ProfileManagementStatus Status { get; init; }
+
+    public AuthenticationProfileMetadata? Profile { get; init; }
+
+    public bool RemovedActiveSelection { get; init; }
+
+    public string? ErrorMessage { get; init; }
+}

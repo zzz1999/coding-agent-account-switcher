@@ -71,7 +71,7 @@ public sealed class ApplicationPreferencesTests
 
         var catalogs = LocalizationCatalog.Create();
         Assert.Equal(expectedLanguages.Length, catalogs.Count);
-        Assert.Equal(127, catalogs["en-US"].Count);
+        Assert.Equal(157, catalogs["en-US"].Count);
         foreach (var language in expectedLanguages)
         {
             Assert.Equal(catalogs["en-US"].Keys.Order(), catalogs[language].Keys.Order());

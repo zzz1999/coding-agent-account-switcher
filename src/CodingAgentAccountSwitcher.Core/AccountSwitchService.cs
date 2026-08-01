@@ -81,6 +81,130 @@ public sealed class AccountSwitchService
         return Task.Run(() => Recover(adapter, cancellationToken), cancellationToken);
     }
 
+    public Task<ProfileManagementResult> RenameProfileAsync(
+        AgentProvider provider,
+        Guid profileId,
+        string displayName,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => RenameProfile(provider, profileId, displayName, cancellationToken),
+            cancellationToken);
+
+    public Task<ProfileManagementResult> DeleteProfileAsync(
+        AgentProvider provider,
+        Guid profileId,
+        bool confirmActiveSelectionRemoval = false,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => DeleteProfile(
+                provider,
+                profileId,
+                confirmActiveSelectionRemoval,
+                cancellationToken),
+            cancellationToken);
+
+    private ProfileManagementResult RenameProfile(
+        AgentProvider provider,
+        Guid profileId,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        using var operationLock = TryAcquireMutex(provider, cancellationToken);
+        if (operationLock is null)
+        {
+            return new ProfileManagementResult { Status = ProfileManagementStatus.LockUnavailable };
+        }
+
+        try
+        {
+            if (_vault.GetPendingJournal(provider) is not null)
+            {
+                return new ProfileManagementResult { Status = ProfileManagementStatus.RecoveryRequired };
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var trimmedDisplayName = displayName.Trim();
+            if (_vault.ListProfiles(provider).Any(profile =>
+                    profile.ProfileId != profileId &&
+                    string.Equals(
+                        profile.DisplayName,
+                        trimmedDisplayName,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                return new ProfileManagementResult { Status = ProfileManagementStatus.DisplayNameConflict };
+            }
+
+            var profile = _vault.RenameProfile(provider, profileId, trimmedDisplayName);
+            return new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Success,
+                Profile = profile,
+            };
+        }
+        catch (FileNotFoundException)
+        {
+            return new ProfileManagementResult { Status = ProfileManagementStatus.ProfileNotFound };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Failed,
+                ErrorMessage = exception.Message,
+            };
+        }
+    }
+
+    private ProfileManagementResult DeleteProfile(
+        AgentProvider provider,
+        Guid profileId,
+        bool confirmActiveSelectionRemoval,
+        CancellationToken cancellationToken)
+    {
+        using var operationLock = TryAcquireMutex(provider, cancellationToken);
+        if (operationLock is null)
+        {
+            return new ProfileManagementResult { Status = ProfileManagementStatus.LockUnavailable };
+        }
+
+        try
+        {
+            if (_vault.GetPendingJournal(provider) is not null)
+            {
+                return new ProfileManagementResult { Status = ProfileManagementStatus.RecoveryRequired };
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_vault.GetActiveProfile(provider)?.ProfileId == profileId &&
+                !confirmActiveSelectionRemoval)
+            {
+                return new ProfileManagementResult
+                {
+                    Status = ProfileManagementStatus.ActiveProfileConfirmationRequired,
+                };
+            }
+
+            var removedActiveSelection = _vault.DeleteProfile(provider, profileId);
+            return new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Success,
+                RemovedActiveSelection = removedActiveSelection,
+            };
+        }
+        catch (FileNotFoundException)
+        {
+            return new ProfileManagementResult { Status = ProfileManagementStatus.ProfileNotFound };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Failed,
+                ErrorMessage = exception.Message,
+            };
+        }
+    }
+
     private CaptureProfileResult CaptureCurrentLogin(
         IAuthenticationAdapter adapter,
         string displayName,

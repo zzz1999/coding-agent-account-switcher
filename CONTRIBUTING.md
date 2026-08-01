@@ -15,6 +15,10 @@ The rolling Release workflow compiles
 on GitHub-hosted Windows runners. To build the installer locally, first publish
 the self-contained application to `artifacts/publish`, copy `LICENSE` into that
 directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
+The workflow's single `APP_VERSION` value must version both the executable and
+the Release notes. Preserve the exact machine-readable marker contract
+`<!-- coding-agent-account-switcher-version: 0.1.N -->` when changing release
+packaging or update discovery.
 
 ## Pull request expectations
 
@@ -22,6 +26,10 @@ directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
   process rules inside provider adapters.
 - Add tests for every account/API snapshot, selective merge, transaction, or
   recovery change. Tests must prove unrelated configuration survives unchanged.
+- Profile-management tests must prove rename changes only local metadata;
+  delete removes only the selected encrypted snapshot; deleting the active
+  profile clears only its local association and leaves live provider files
+  unchanged; and pending transaction recovery blocks rename and delete.
 - OpenCode adapter tests must cover `config.json` -> `opencode.json` ->
   `opencode.jsonc` -> `OPENCODE_CONFIG` precedence, stale managed-key removal
   from non-target layers, canonical writes to the custom path or global
@@ -41,12 +49,18 @@ directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
 - Do not add telemetry, crash upload, authentication-file decoding, email
   extraction, secret logging, or automatic process termination. Parsing is
   limited to the documented selective configuration whitelist.
+- Keep update discovery explicitly user initiated: one anonymous HTTPS `GET` to
+  the official GitHub API, no startup/background/periodic checks, and no
+  automatic download or execution of Release assets. Tests must verify these
+  network and execution boundaries.
 - Preserve keyboard navigation, high-contrast behavior, and a minimum 44-pixel
   interaction target in UI changes.
 - Do not include Apple fonts, SF Symbols, Apple artwork, or provider logos.
 - Run `dotnet test` and `git diff --check` before submitting.
 - When release packaging changes, verify that the installer EXE, portable EXE,
-  and both SHA-256 sidecars are all attached to the rolling `latest` Release.
+  and both SHA-256 sidecars are all attached to the rolling `latest` Release,
+  and that its notes contain the exact version marker produced from the same
+  `APP_VERSION` used by `dotnet publish`.
 
 ## Commit scope
 

@@ -7,7 +7,8 @@
     <CornerRadius x:Key="Radius.Card">22</CornerRadius>
     <CornerRadius x:Key="Radius.Control">14</CornerRadius>
     <CornerRadius x:Key="Radius.Small">10</CornerRadius>
-    <CornerRadius x:Key="Radius.Pill">999</CornerRadius>
+    <!-- Oversized WPF border radii scale into a lens shape; 14 matches the 27px badge height. -->
+    <CornerRadius x:Key="Radius.Pill">14</CornerRadius>
     <sys:Double x:Key="Space.1">4</sys:Double>
     <sys:Double x:Key="Space.2">8</sys:Double>
     <sys:Double x:Key="Space.3">12</sys:Double>
@@ -191,6 +192,23 @@
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.Segmented.Track}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="Style.Button.Danger"
+           TargetType="Button"
+           BasedOn="{StaticResource Style.Button.Base}">
+        <Setter Property="Background" Value="{DynamicResource Brush.State.DangerMuted}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.State.Danger}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.State.Danger}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.State.Danger}" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Inverse}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.State.Danger}" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Inverse}" />
             </Trigger>
         </Style.Triggers>
     </Style>

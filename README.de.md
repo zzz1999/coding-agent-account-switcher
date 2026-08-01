@@ -87,11 +87,15 @@ Mehrdatei-Commits sind ausfallsicher geschlossen: Zuerst wird die separate Authe
 
 Die App verspricht keine dauerhafte Anmeldung. Anbieterseitiger Widerruf, Organisationsrichtlinien, SSO, MFA oder Token-Ablauf können weiterhin eine normale Anmeldung im offiziellen Client erfordern.
 
+Umbenennen und Löschen eines Profils wirken sich nur auf den lokalen verschlüsselten Momentaufnahme-Tresor aus. Beim Umbenennen ändern sich ausschließlich gespeicherte Bezeichnung und Metadaten, nicht der Inhalt der Momentaufnahme; beim Löschen wird nur die ausgewählte lokale verschlüsselte Momentaufnahme entfernt. Wird das zuletzt gewählte Profil gelöscht, löscht die App außerdem dessen aktive Zuordnung, meldet das Konto jedoch nicht ab und ändert keine aktiven Authentifizierungs- oder Konfigurationsdateien des Anbieters. Speichern Sie vor dem nächsten Wechsel das aktuelle Konto. Beide Aktionen werden abgewiesen, solange eine unterbrochene Wechseltransaktion auf Wiederherstellung wartet.
+
 ## Einstellungen
 
 Öffnen Sie im Anwendungsfenster **Einstellungen**, um eine Anzeigesprache zu wählen oder festzulegen, ob die App mit Windows startet. Die Sprache wird lokal für den aktuellen Windows-Benutzer gespeichert und kann jederzeit geändert werden.
 
 **Mit Windows starten** fügt unter `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` einen Eintrag für diese Anwendung hinzu. Dies gilt nur für den aktuellen Windows-Benutzer und erfordert keine Administratorrechte. Beim Ausschalten wird ausschließlich der Autostarteintrag von Coding Agent Account Switcher entfernt; andere Autostart-Anwendungen bleiben unverändert.
+
+**Nach Updates suchen** wird ausschließlich vom Benutzer ausgelöst. Erst nach einem Klick sendet die App eine einzelne anonyme HTTPS-`GET`-Anfrage an die offizielle GitHub-API dieses Repositorys. Beim Start, im Hintergrund oder regelmäßig wird nicht geprüft; die Anfrage überträgt keine Anmeldedaten, Einstellungen, Profilnamen, Gerätekennungen oder Telemetrie. Die App vergleicht nur Release-Metadaten und lädt niemals automatisch ein Installationsprogramm oder einen portablen Build herunter oder führt ihn aus.
 
 ## Sicherheitsmodell
 
@@ -138,7 +142,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 3. Das benutzerspezifische Windows-x64-Installationsprogramm erstellen.
 4. Die portable ausführbare Datei und SHA-256-Prüfsummen für beide ausführbaren Dateien vorbereiten.
 5. Ausschließlich das vorherige Release und Tag namens `latest` löschen.
-6. Ein neues `latest`-Release mit Installationsprogramm, portabler ausführbarer Datei und Prüfsummen für den aktuellen Commit veröffentlichen.
+6. Ein neues `latest`-Release mit Installationsprogramm, portabler ausführbarer Datei und Prüfsummen für den aktuellen Commit veröffentlichen. Ein einziger Workflow-Wert `APP_VERSION` versioniert die ausführbare Datei und schreibt diese exakte maschinenlesbare Markierung in die Hinweise: `<!-- coding-agent-account-switcher-version: 0.1.N -->`.
+
+Da das Tag `latest` fortlaufend ersetzt wird, liest die App diese Markierung nur bei einer ausdrücklich vom Benutzer gestarteten Updateprüfung aus der Antwort der offiziellen GitHub-Releases-API. Sie prüft nicht im Hintergrund und lädt keine Release-Datei automatisch herunter oder führt sie aus.
 
 Versionierte Releases werden von diesem Workflow nie gelöscht. GitHubs Option **immutable releases** muss für das fortlaufende `latest`-Tag deaktiviert bleiben, und Branch- oder Tag-Regeln müssen dem Workflow erlauben, `latest` zu löschen. Repositorys, die unveränderliche Releases verlangen, sollten den Workflow auf eindeutige Build-Tags umstellen.
 

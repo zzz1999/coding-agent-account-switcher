@@ -286,6 +286,132 @@ public sealed class AuthenticationProfileVault
         return updated;
     }
 
+    public AuthenticationProfileMetadata RenameProfile(
+        AgentProvider provider,
+        Guid profileId,
+        string displayName)
+    {
+        ValidateDisplayName(displayName);
+        var metadata = GetProfile(provider, profileId);
+        var trimmedDisplayName = displayName.Trim();
+        if (string.Equals(metadata.DisplayName, trimmedDisplayName, StringComparison.Ordinal))
+        {
+            return metadata;
+        }
+
+        var metadataPath = GetMetadataPath(provider, profileId);
+        byte[]? previousMetadata = null;
+        var updated = metadata with { DisplayName = trimmedDisplayName };
+        try
+        {
+            previousMetadata = ReadBoundedFile(metadataPath, MaximumMetadataSizeBytes);
+            try
+            {
+                WriteJson(metadataPath, updated);
+                return updated;
+            }
+            catch (Exception renameException)
+            {
+                var rollbackErrors = new List<Exception>();
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(metadataPath, previousMetadata!),
+                    rollbackErrors);
+                if (rollbackErrors.Count > 0)
+                {
+                    rollbackErrors.Insert(0, renameException);
+                    throw new IOException(
+                        "Renaming the authentication profile failed and its previous metadata could not be restored.",
+                        new AggregateException(rollbackErrors));
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            ZeroIfPresent(previousMetadata);
+        }
+    }
+
+    public bool DeleteProfile(AgentProvider provider, Guid profileId)
+    {
+        GetProfile(provider, profileId);
+        var blobPath = GetBlobPath(provider, profileId);
+        var metadataPath = GetMetadataPath(provider, profileId);
+        var activeStatePath = GetActiveStatePath(provider);
+        var activeState = GetActiveProfile(provider);
+        var removesActiveSelection = activeState?.ProfileId == profileId;
+
+        byte[]? previousBlob = null;
+        byte[]? previousMetadata = null;
+        byte[]? previousActiveState = null;
+        var activeMutationAttempted = false;
+        var metadataMutationAttempted = false;
+        var blobMutationAttempted = false;
+        try
+        {
+            // Capture exact bytes before the first destructive write so a normal
+            // I/O failure can restore the complete encrypted profile.
+            previousBlob = ReadBoundedFile(blobPath, MaximumProtectedBlobSizeBytes);
+            previousMetadata = ReadBoundedFile(metadataPath, MaximumMetadataSizeBytes);
+            previousActiveState = removesActiveSelection
+                ? ReadBoundedFile(activeStatePath, MaximumMetadataSizeBytes)
+                : null;
+
+            if (removesActiveSelection)
+            {
+                activeMutationAttempted = true;
+                _atomicWriter.DeleteFile(activeStatePath);
+            }
+
+            // Hide metadata before removing the encrypted blob. A sudden process
+            // termination can then leave only an unreferenced encrypted file,
+            // never a visible profile whose credential blob is missing.
+            metadataMutationAttempted = true;
+            _atomicWriter.DeleteFile(metadataPath);
+            blobMutationAttempted = true;
+            _atomicWriter.DeleteFile(blobPath);
+            return removesActiveSelection;
+        }
+        catch (Exception deleteException)
+        {
+            var rollbackErrors = new List<Exception>();
+            var blobRestored = !blobMutationAttempted || TryRollback(
+                () => _atomicWriter.WriteAllBytes(blobPath, previousBlob!),
+                rollbackErrors);
+            var metadataRestored = !metadataMutationAttempted;
+            if (metadataMutationAttempted && blobRestored)
+            {
+                metadataRestored = TryRollback(
+                    () => _atomicWriter.WriteAllBytes(metadataPath, previousMetadata!),
+                    rollbackErrors);
+            }
+
+            if (activeMutationAttempted && metadataRestored)
+            {
+                TryRollback(
+                    () => _atomicWriter.WriteAllBytes(activeStatePath, previousActiveState!),
+                    rollbackErrors);
+            }
+
+            if (rollbackErrors.Count > 0)
+            {
+                rollbackErrors.Insert(0, deleteException);
+                throw new IOException(
+                    "Deleting the authentication profile failed and its previous state could not be restored completely.",
+                    new AggregateException(rollbackErrors));
+            }
+
+            throw;
+        }
+        finally
+        {
+            ZeroIfPresent(previousBlob);
+            ZeroIfPresent(previousMetadata);
+            ZeroIfPresent(previousActiveState);
+        }
+    }
+
     public AuthenticationProfileMetadata GetProfile(AgentProvider provider, Guid profileId)
     {
         var path = GetMetadataPath(provider, profileId);

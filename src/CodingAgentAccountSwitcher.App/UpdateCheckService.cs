@@ -1,0 +1,174 @@
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
+
+namespace CodingAgentAccountSwitcher.App;
+
+internal enum UpdateAvailability
+{
+    UpToDate,
+    UpdateAvailable,
+}
+
+internal sealed record UpdateCheckResult(
+    Version CurrentVersion,
+    Version LatestVersion,
+    UpdateAvailability Availability,
+    Uri ReleasePage);
+
+internal interface IUpdateCheckService
+{
+    Task<UpdateCheckResult> CheckAsync(Version currentVersion, CancellationToken cancellationToken = default);
+}
+
+internal sealed class GitHubUpdateCheckService : IUpdateCheckService
+{
+    internal const string ReleaseVersionMarkerPrefix =
+        "<!-- coding-agent-account-switcher-version: ";
+    internal const string ReleaseVersionMarkerSuffix = " -->";
+    internal const int MaximumResponseBytes = 128 * 1024;
+
+    internal static readonly Uri LatestReleaseApiUri = new(
+        "https://api.github.com/repos/zzz1999/coding-agent-account-switcher/releases/latest",
+        UriKind.Absolute);
+    internal static readonly Uri LatestReleasePageUri = new(
+        "https://github.com/zzz1999/coding-agent-account-switcher/releases/tag/latest",
+        UriKind.Absolute);
+
+    private readonly HttpClient _httpClient;
+
+    public GitHubUpdateCheckService()
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(12) })
+    {
+    }
+
+    internal GitHubUpdateCheckService(HttpClient httpClient)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        _httpClient = httpClient;
+    }
+
+    public async Task<UpdateCheckResult> CheckAsync(
+        Version currentVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentVersion);
+        var normalizedCurrentVersion = NormalizeVersion(currentVersion);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUri);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        request.Headers.UserAgent.ParseAdd(
+            $"CodingAgentAccountSwitcher/{FormatVersion(normalizedCurrentVersion)}");
+        request.Headers.Add("X-GitHub-Api-Version", "2026-03-10");
+
+        using var response = await _httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        if (response.Content.Headers.ContentLength is > MaximumResponseBytes)
+        {
+            throw new InvalidDataException("The GitHub release response is unexpectedly large.");
+        }
+
+        var responseBytes = await ReadBoundedResponseAsync(response.Content, cancellationToken);
+        using var document = JsonDocument.Parse(responseBytes);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("tag_name", out var tagElement) ||
+            !string.Equals(tagElement.GetString(), "latest", StringComparison.Ordinal) ||
+            !root.TryGetProperty("body", out var bodyElement) ||
+            bodyElement.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException("The GitHub release metadata is incomplete or unexpected.");
+        }
+
+        var latestVersion = ParseReleaseVersion(bodyElement.GetString()!);
+        return new UpdateCheckResult(
+            normalizedCurrentVersion,
+            latestVersion,
+            latestVersion > normalizedCurrentVersion
+                ? UpdateAvailability.UpdateAvailable
+                : UpdateAvailability.UpToDate,
+            LatestReleasePageUri);
+    }
+
+    internal static Version ParseReleaseVersion(string releaseBody)
+    {
+        ArgumentNullException.ThrowIfNull(releaseBody);
+        Version? parsedVersion = null;
+        foreach (var rawLine in releaseBody.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (!line.StartsWith(ReleaseVersionMarkerPrefix, StringComparison.Ordinal) ||
+                !line.EndsWith(ReleaseVersionMarkerSuffix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var versionText = line[
+                ReleaseVersionMarkerPrefix.Length..^ReleaseVersionMarkerSuffix.Length].Trim();
+            if (!Version.TryParse(versionText, out var candidate) || candidate.Build < 0)
+            {
+                throw new InvalidDataException("The GitHub release version marker is invalid.");
+            }
+
+            var normalizedCandidate = NormalizeVersion(candidate);
+            if (parsedVersion is not null && parsedVersion != normalizedCandidate)
+            {
+                throw new InvalidDataException("The GitHub release contains conflicting version markers.");
+            }
+
+            parsedVersion = normalizedCandidate;
+        }
+
+        return parsedVersion
+            ?? throw new InvalidDataException("The GitHub release does not contain an application version marker.");
+    }
+
+    internal static Version NormalizeVersion(Version version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        return new Version(
+            version.Major,
+            version.Minor,
+            Math.Max(version.Build, 0),
+            Math.Max(version.Revision, 0));
+    }
+
+    internal static string FormatVersion(Version version)
+    {
+        var normalized = NormalizeVersion(version);
+        return normalized.Revision == 0
+            ? normalized.ToString(3)
+            : normalized.ToString(4);
+    }
+
+    private static async Task<byte[]> ReadBoundedResponseAsync(
+        HttpContent content,
+        CancellationToken cancellationToken)
+    {
+        await using var input = await content.ReadAsStreamAsync(cancellationToken);
+        using var output = new MemoryStream();
+        var buffer = new byte[8192];
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            if (output.Length + read > MaximumResponseBytes)
+            {
+                throw new InvalidDataException("The GitHub release response is unexpectedly large.");
+            }
+
+            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        return output.ToArray();
+    }
+}

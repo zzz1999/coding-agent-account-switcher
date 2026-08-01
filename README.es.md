@@ -87,11 +87,15 @@ Los perfiles antiguos sin formato compuesto de Codex y Claude Code se interpreta
 
 La aplicación no garantiza que una sesión dure indefinidamente. Una revocación del proveedor, una política de la organización, SSO, MFA o el vencimiento del token aún pueden requerir un inicio de sesión normal en el cliente oficial.
 
+Cambiar el nombre o eliminar un perfil solo afecta al almacén local de instantáneas cifradas. El cambio de nombre modifica únicamente la etiqueta y los metadatos guardados, no el contenido de la instantánea; la eliminación solo quita la instantánea local cifrada seleccionada. Eliminar el perfil seleccionado por última vez también borra su asociación activa en la aplicación, pero no cierra la sesión ni modifica los archivos activos de autenticación o configuración del proveedor. Guarde la cuenta actual antes de volver a cambiar. Ambas acciones se rechazan mientras una transacción de cambio interrumpida esté pendiente de recuperación.
+
 ## Ajustes
 
 Abra **Ajustes** desde la ventana de la aplicación para elegir el idioma o controlar si la aplicación se inicia con Windows. El idioma se guarda localmente para el usuario actual de Windows y puede cambiarse en cualquier momento.
 
 **Iniciar con Windows** añade una entrada para esta aplicación en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Solo afecta al usuario actual de Windows y no requiere privilegios de administrador. Al desactivarlo se elimina únicamente la entrada de inicio perteneciente a Coding Agent Account Switcher, sin alterar otras aplicaciones de inicio.
+
+**Buscar actualizaciones** es una acción totalmente iniciada por el usuario. Solo después de pulsarla, la aplicación envía una única solicitud HTTPS `GET` anónima a la API oficial de GitHub de este repositorio. No hay comprobaciones al iniciar, en segundo plano ni periódicas, y la solicitud no carga credenciales, ajustes, nombres de perfiles, identificadores del equipo ni telemetría. La aplicación solo compara metadatos de la versión; nunca descarga ni ejecuta automáticamente un instalador o una compilación portátil.
 
 ## Modelo de seguridad
 
@@ -138,7 +142,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 3. Crea el instalador para el usuario actual de Windows x64.
 4. Prepara el ejecutable portátil y las sumas SHA-256 de ambos ejecutables.
 5. Elimina únicamente la versión y la etiqueta anteriores llamadas `latest`.
-6. Publica una nueva versión `latest` con el instalador, el ejecutable portátil y las sumas para el commit actual.
+6. Publica una nueva versión `latest` con el instalador, el ejecutable portátil y las sumas para el commit actual. Un único valor `APP_VERSION` del flujo asigna la versión del ejecutable y escribe este marcador exacto legible por máquina en las notas: `<!-- coding-agent-account-switcher-version: 0.1.N -->`.
+
+Como la etiqueta `latest` es continua, la aplicación lee ese marcador de la respuesta de la API oficial de GitHub Releases únicamente cuando el usuario busca actualizaciones. No realiza comprobaciones en segundo plano ni descarga o ejecuta automáticamente ningún archivo publicado.
 
 El flujo nunca elimina versiones numeradas. La opción **immutable releases** de GitHub debe estar desactivada para la etiqueta continua `latest`, y las reglas de ramas o etiquetas deben permitir que el flujo elimine `latest`. Los repositorios que exijan versiones inmutables deben usar etiquetas de compilación únicas.
 

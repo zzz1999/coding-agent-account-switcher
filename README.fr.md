@@ -87,11 +87,15 @@ Les anciens profils bruts Codex et Claude Code sont interprétés comme des iden
 
 L’application ne garantit pas une session permanente. Une révocation côté fournisseur, une règle d’organisation, le SSO, la MFA ou l’expiration d’un jeton peuvent toujours imposer une connexion normale avec le client officiel.
 
+Renommer ou supprimer un profil agit uniquement sur le coffre local d’instantanés chiffrés. Le renommage ne modifie que le libellé et les métadonnées enregistrés, jamais le contenu de l’instantané ; la suppression retire uniquement l’instantané local chiffré sélectionné. Supprimer le dernier profil sélectionné efface aussi son association active dans l’application, mais ne déconnecte pas le compte et ne modifie aucun fichier actif d’authentification ou de configuration du fournisseur. Enregistrez le compte actuel avant tout nouveau changement. Ces deux actions sont refusées tant qu’une transaction de changement interrompue attend une récupération.
+
 ## Paramètres
 
 Ouvrez **Paramètres** dans la fenêtre de l’application pour choisir la langue d’affichage ou décider si l’application démarre avec Windows. La langue choisie est enregistrée localement pour l’utilisateur Windows actuel et peut être modifiée à tout moment.
 
 **Démarrer avec Windows** ajoute une entrée pour cette application sous `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Cette option ne concerne que l’utilisateur Windows actuel et ne nécessite aucun droit d’administrateur. Sa désactivation supprime uniquement l’entrée de démarrage appartenant à Coding Agent Account Switcher et ne modifie aucune autre application au démarrage.
+
+**Rechercher des mises à jour** est une action entièrement déclenchée par l’utilisateur. Ce n’est qu’après un clic que l’application envoie une unique requête HTTPS `GET` anonyme à l’API GitHub officielle de ce dépôt. Aucune vérification n’a lieu au démarrage, en arrière-plan ou périodiquement, et la requête ne téléverse ni identifiants, ni paramètres, ni noms de profils, ni identifiant de machine, ni télémétrie. L’application compare seulement les métadonnées de la release ; elle ne télécharge et n’exécute jamais automatiquement un programme d’installation ou une version portable.
 
 ## Modèle de sécurité
 
@@ -138,7 +142,9 @@ dotnet publish .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.A
 3. Création du programme d’installation Windows x64 par utilisateur.
 4. Préparation de l’exécutable portable et des sommes de contrôle SHA-256 des deux exécutables.
 5. Suppression de la seule release précédente et du seul tag précédent nommés `latest`.
-6. Publication d’une nouvelle release `latest` avec le programme d’installation, l’exécutable portable et les sommes de contrôle pour le commit actuel.
+6. Publication d’une nouvelle release `latest` avec le programme d’installation, l’exécutable portable et les sommes de contrôle pour le commit actuel. Une seule valeur `APP_VERSION` du workflow versionne l’exécutable et inscrit dans les notes ce marqueur exact lisible par machine : `<!-- coding-agent-account-switcher-version: 0.1.N -->`.
+
+Le tag `latest` étant glissant, l’application lit ce marqueur dans la réponse de l’API GitHub Releases officielle uniquement lorsque l’utilisateur recherche explicitement une mise à jour. Elle ne vérifie rien en arrière-plan et ne télécharge ni n’exécute automatiquement aucun fichier publié.
 
 Ce workflow ne supprime jamais les releases versionnées. L’option **immutable releases** de GitHub doit rester désactivée pour le tag glissant `latest`, et les règles de branche ou de tag doivent autoriser le workflow à supprimer `latest`. Un dépôt exigeant des releases immuables doit employer des tags de compilation uniques.
 

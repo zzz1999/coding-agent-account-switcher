@@ -124,6 +124,8 @@ internal static partial class LocalizationCatalog
             ["Card.Switch"] = "Switch",
             ["Card.RestoreAutomation"] = "Restore the saved snapshot for {0}",
             ["Card.SwitchAutomation"] = "Switch to {0}",
+            ["Card.RenameHint"] = "Double-click to rename {0}",
+            ["Card.DeleteAutomation"] = "Delete the saved profile {0}",
             ["Common.Cancel"] = "Cancel",
             ["Common.Close"] = "Close",
             ["Process.Automation"] = "Process check required",
@@ -149,6 +151,20 @@ internal static partial class LocalizationCatalog
             ["Save.Snapshot"] = "Save encrypted snapshot",
             ["Save.Replace"] = "Replace saved snapshot",
             ["Save.ReplaceConfirm"] = "A profile named {0} already exists. Choose Replace saved snapshot to confirm.",
+            ["Rename.Automation"] = "Rename saved profile",
+            ["Rename.Title"] = "Rename profile",
+            ["Rename.Description"] = "Change the local label for {0}. The encrypted snapshot and provider files are not changed.",
+            ["Rename.Action"] = "Rename",
+            ["Rename.NameConflict"] = "A profile named {0} already exists.",
+            ["Rename.Failure"] = "The profile could not be renamed",
+            ["Delete.Automation"] = "Delete saved profile",
+            ["Delete.Title"] = "Delete profile?",
+            ["Delete.Message"] = "Delete the encrypted local snapshot {0}? This cannot be undone.",
+            ["Delete.ActiveMessage"] = "{0} is the last selected profile. Deleting it removes only its local snapshot and selection marker; the provider's live account files remain unchanged. Save the current account again before switching.",
+            ["Delete.Safety"] = "This removes app-managed local snapshot files. It does not sign out, delete the provider account, or securely erase disk sectors.",
+            ["Delete.Action"] = "Delete profile",
+            ["Delete.ActiveConfirmation"] = "This profile became last selected after the dialog opened. Review the warning, then choose Delete profile again.",
+            ["Delete.Failure"] = "The profile could not be deleted",
             ["Changed.Automation"] = "Current account confirmation required",
             ["Changed.Confirm.Title"] = "Confirm the current account",
             ["Changed.Confirm.Message"] = "The live account configuration no longer matches the encrypted snapshot for {0}. This may be a normal token refresh, an API-setting change, or a different account. Confirm only if the current account still belongs to {0}; otherwise save it as a new profile first.",
@@ -170,6 +186,15 @@ internal static partial class LocalizationCatalog
             ["Settings.Startup"] = "START WITH WINDOWS",
             ["Settings.Startup.Description"] = "Launch for the current Windows user after sign-in. Administrator access is not required.",
             ["Settings.Startup.Toggle"] = "Start Coding Agent Account Switcher with Windows",
+            ["Settings.Update.Title"] = "SOFTWARE UPDATE",
+            ["Settings.Update.Check"] = "Check for updates",
+            ["Settings.Update.Open"] = "Open download page",
+            ["Settings.Update.Current"] = "Installed version: {0}. Update checks run only when you choose Check for updates.",
+            ["Settings.Update.Checking"] = "Checking GitHub for an update to version {0}â€¦",
+            ["Settings.Update.UpToDate"] = "Version {0} is up to date.",
+            ["Settings.Update.Available"] = "Version {1} is available. You have version {0}.",
+            ["Settings.Update.Failure"] = "The update check could not be completed",
+            ["Settings.Update.OpenFailure"] = "The download page could not be opened: {0}",
             ["Settings.Saved"] = "Settings saved.",
             ["Settings.LanguageFailure"] = "The language setting could not be saved: {0}",
             ["Settings.StartupFailure"] = "The Windows startup setting could not be changed: {0}",
@@ -191,6 +216,11 @@ internal static partial class LocalizationCatalog
             ["Status.LoginMissing"] = "No usable {0} account configuration was found. Configure or sign in normally, close the app, then try again.",
             ["Status.AuthenticationEmpty"] = "The managed account configuration is empty or invalid, so nothing was saved.",
             ["Status.ProfileReplaceMissing"] = "The profile to replace no longer exists. The list has been refreshed.",
+            ["Status.ProfileRenamed"] = "Renamed {0} to {1}.",
+            ["Status.ProfileDeleted"] = "Deleted the encrypted local profile {0}.",
+            ["Status.ActiveProfileDeleted"] = "Deleted {0}. Live account files were not changed; save the current account before switching.",
+            ["Status.ProfileManagementMissing"] = "That saved profile no longer exists. The list has been refreshed.",
+            ["Status.ProfileManagementRecoveryRequired"] = "Finish interrupted-switch recovery before renaming or deleting profiles.",
             ["Status.OperationInProgress"] = "Another account operation is in progress. Try again in a moment.",
             ["Status.CaptureRecovery"] = "An interrupted switch requires recovery before an account can be saved",
             ["Status.SaveFailed"] = "The account could not be saved",
@@ -238,11 +268,17 @@ internal static partial class LocalizationCatalog
         IReadOnlyDictionary<string, string> english,
         IReadOnlyDictionary<string, string> translation)
     {
-        var missingKeys = english.Keys.Except(translation.Keys, StringComparer.Ordinal).ToArray();
-        var extraKeys = translation.Keys.Except(english.Keys, StringComparer.Ordinal).ToArray();
+        var completeTranslation = new Dictionary<string, string>(translation, StringComparer.Ordinal);
+        foreach (var pair in ProfileManagementAndUpdateTranslations(language))
+        {
+            completeTranslation[pair.Key] = pair.Value;
+        }
+
+        var missingKeys = english.Keys.Except(completeTranslation.Keys, StringComparer.Ordinal).ToArray();
+        var extraKeys = completeTranslation.Keys.Except(english.Keys, StringComparer.Ordinal).ToArray();
         var placeholderMismatches = english.Keys
-            .Where(key => translation.ContainsKey(key))
-            .Where(key => !PlaceholderIndexes(english[key]).SequenceEqual(PlaceholderIndexes(translation[key])))
+            .Where(key => completeTranslation.ContainsKey(key))
+            .Where(key => !PlaceholderIndexes(english[key]).SequenceEqual(PlaceholderIndexes(completeTranslation[key])))
             .ToArray();
         if (missingKeys.Length > 0 || extraKeys.Length > 0 || placeholderMismatches.Length > 0)
         {
@@ -251,7 +287,7 @@ internal static partial class LocalizationCatalog
         }
 
         var result = new Dictionary<string, string>(english, StringComparer.Ordinal);
-        foreach (var pair in translation)
+        foreach (var pair in completeTranslation)
         {
             result[pair.Key] = pair.Value;
         }

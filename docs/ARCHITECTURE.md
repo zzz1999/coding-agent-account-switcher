@@ -14,6 +14,11 @@ core and a WPF presentation layer.
   snapshot below the current user's local application data directory. The
   snapshot contains opaque authentication bytes and only the provider-specific
   configuration fields in the whitelist below.
+- **Profile management**: renames only a snapshot's local label and metadata;
+  deletes only the selected local encrypted snapshot. Deleting the last-selected
+  profile also clears the local active-profile association, while all live
+  provider authentication and configuration files remain untouched. A pending
+  recovery transaction blocks both operations.
 - **Managed-location scope**: hashes the normalized live managed-file set. Every
   location set receives an independent vault, active state, journal, and mutex
   without persisting user-profile paths in metadata.
@@ -41,6 +46,10 @@ core and a WPF presentation layer.
 - **Startup registration**: manages one application-owned value in the current
   user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. It never
   writes a machine-wide startup entry and does not require elevation.
+- **Update discovery**: after an explicit user click, sends one anonymous HTTPS
+  `GET` to the official GitHub Release API and compares the machine-readable
+  version marker in the rolling Release notes. It has no startup, background,
+  or periodic scheduler and does not download or execute Release assets.
 - **Windows installer**: installs the self-contained x64 application below the
   current user's local application data, adds a Start Menu shortcut and an
   HKCU uninstall entry, and never requests elevation. Installation does not
@@ -104,6 +113,17 @@ core and a WPF presentation layer.
 19. OpenCode capture and switch fail closed before writing when known inline or
     directory environment overrides could supply credentials or managed
     `provider`, `model`, or `small_model` values.
+20. Profile rename changes only local vault metadata. Profile delete removes
+    only the selected local encrypted snapshot and metadata. Deleting the
+    last-selected profile clears its local active association but never changes
+    live provider files. A pending recovery journal blocks both operations.
+21. Update discovery performs one anonymous request only after an explicit user
+    action. It never runs at startup or in the background and never downloads or
+    executes an installer or portable asset automatically.
+22. The rolling workflow uses one `APP_VERSION` value for the executable and
+    Release notes. The notes contain exactly one marker in the format
+    `<!-- coding-agent-account-switcher-version: 0.1.N -->`; the rolling
+    `latest` tag itself is not treated as a semantic version.
 
 ## Provider contracts
 
@@ -192,6 +212,14 @@ managed API field outside the application, they must capture the current state
 again under the correct label. A content mismatch cannot distinguish a harmless
 token refresh from another account or API site, so save-before-switch pauses
 for explicit confirmation and offers to capture the state separately.
+
+Renaming changes only that display label and its local metadata. Deleting a
+profile removes only its encrypted local snapshot. When the deleted profile was
+last selected, the application clears its local association, but this is not a
+sign-out operation and the live provider files remain exactly as they were.
+Because no source profile is then associated with that live state, the user must
+save the current account before switching again. Neither rename nor delete is
+available while interrupted transaction recovery is pending.
 
 ## Refreshed-source switch recovery
 

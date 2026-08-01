@@ -141,24 +141,53 @@
                                     Margin="12,2,10,0">
                             <TextBlock FontSize="16"
                                        FontWeight="SemiBold"
+                                       Cursor="Hand"
+                                       Focusable="True"
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding Name}"
+                                       AutomationProperties.HelpText="{Binding RenameHint}"
+                                       MouseLeftButtonDown="ProfileName_MouseLeftButtonDown"
+                                       KeyDown="ProfileName_KeyDown"
                                        Text="{Binding Name}" />
                             <TextBlock Margin="0,4,0,0"
                                        Style="{StaticResource Style.Text.Caption}"
                                        Text="{Binding Subtitle}" />
                         </StackPanel>
-                        <Border Grid.Column="2"
-                                Height="27"
-                                Padding="10,0"
-                                Background="{DynamicResource Brush.State.SuccessMuted}"
-                                CornerRadius="{StaticResource Radius.Pill}">
-                            <TextBlock VerticalAlignment="Center"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.State.Success}"
-                                       Text="{Binding StatusText}" />
-                        </Border>
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Top">
+                            <Border Height="27"
+                                    Padding="10,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource Brush.State.SuccessMuted}"
+                                    CornerRadius="{StaticResource Radius.Pill}">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.State.Success}"
+                                           Text="{Binding StatusText}" />
+                            </Border>
+                            <Button Width="32"
+                                    Height="32"
+                                    MinWidth="32"
+                                    MinHeight="32"
+                                    Margin="7,-2,0,0"
+                                    Padding="0"
+                                    Style="{StaticResource Style.Button.CloseIcon}"
+                                    AutomationProperties.Name="{Binding DeleteAutomationLabel}"
+                                    Click="DeleteProfileButton_Click">
+                                <Viewbox Width="22"
+                                         Height="22"
+                                         FlowDirection="LeftToRight">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              StrokeThickness="2.1"
+                                              Data="M7,7.5 V18 A2,2 0 0 0 9,20 H15 A2,2 0 0 0 17,18 V7.5 M4.5,7.5 H19.5 M9,4.5 H15 M9.5,11 V17 M14.5,11 V17" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
                     <StackPanel Grid.Row="1"
@@ -360,12 +389,14 @@
 
                 <ScrollViewer Grid.Row="1"
                               Padding="34,22,34,22"
+                              HorizontalContentAlignment="Stretch"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel MaxWidth="820">
+                    <StackPanel MaxWidth="1280"
+                                HorizontalAlignment="Stretch">
                         <TextBlock Style="{StaticResource Style.Text.Display}"
                                    Text="{DynamicResource L.Hero.Title}" />
-                        <TextBlock MaxWidth="680"
+                        <TextBlock MaxWidth="900"
                                    Margin="0,7,0,0"
                                    HorizontalAlignment="Left"
                                    Style="{StaticResource Style.Text.Body}"
@@ -706,16 +737,166 @@
             </Border>
         </Grid>
 
+        <Grid x:Name="RenameProfileDialogOverlay"
+              Panel.ZIndex="23"
+              AutomationProperties.Name="{DynamicResource L.Rename.Automation}"
+              Background="{DynamicResource Brush.Scrim}"
+              Visibility="Collapsed">
+            <Border Style="{StaticResource Style.Dialog}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    KeyboardNavigation.TabNavigation="Cycle">
+                <StackPanel>
+                    <Border Width="48"
+                            Height="48"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource Brush.Accent.Muted}"
+                            CornerRadius="15">
+                        <Viewbox Width="22"
+                                 Height="22"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.Accent.Foreground}"
+                                      StrokeThickness="2"
+                                      Data="M5,19 L9,18 L18.2,8.8 A2,2 0 0 0 15.2,5.8 L6,15 Z M13.8,7.2 L16.8,10.2" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Margin="0,18,0,0"
+                               Style="{StaticResource Style.Text.Title}"
+                               Text="{DynamicResource L.Rename.Title}" />
+                    <TextBlock x:Name="RenameProfileDescription"
+                               Margin="0,8,0,0"
+                               Style="{StaticResource Style.Text.Body}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,20,0,7"
+                               Style="{StaticResource Style.Text.Caption}"
+                               Text="{DynamicResource L.Save.ProfileLabel}" />
+                    <TextBox x:Name="RenameProfileTextBox"
+                             MaxLength="80"
+                             Style="{StaticResource Style.TextBox}"
+                             AutomationProperties.Name="{DynamicResource L.Save.ProfileLabelAutomation}"
+                             TextChanged="RenameProfileTextBox_TextChanged"
+                             KeyDown="RenameProfileTextBox_KeyDown" />
+                    <TextBlock x:Name="RenameProfileValidationText"
+                               Margin="2,7,0,0"
+                               AutomationProperties.LiveSetting="Assertive"
+                               Foreground="{DynamicResource Brush.State.Danger}"
+                               Style="{StaticResource Style.Text.Caption}"
+                               Visibility="Collapsed" />
+                    <Grid Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CancelRenameProfileButton"
+                                Grid.Column="1"
+                                Style="{StaticResource Style.Button.Secondary}"
+                                Click="CancelRenameProfileDialog_Click"
+                                Content="{DynamicResource L.Common.Cancel}" />
+                        <Button x:Name="ConfirmRenameProfileButton"
+                                Grid.Column="3"
+                                Style="{StaticResource Style.Button.Primary}"
+                                Click="ConfirmRenameProfile_Click"
+                                Content="{DynamicResource L.Rename.Action}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="DeleteProfileDialogOverlay"
+              Panel.ZIndex="23"
+              AutomationProperties.Name="{DynamicResource L.Delete.Automation}"
+              Background="{DynamicResource Brush.Scrim}"
+              Visibility="Collapsed">
+            <Border Style="{StaticResource Style.Dialog}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    KeyboardNavigation.TabNavigation="Cycle">
+                <StackPanel>
+                    <Border Width="48"
+                            Height="48"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource Brush.State.DangerMuted}"
+                            CornerRadius="15">
+                        <Viewbox Width="22"
+                                 Height="22"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.State.Danger}"
+                                      StrokeThickness="2"
+                                      Data="M8,8 V18 A2,2 0 0 0 10,20 H14 A2,2 0 0 0 16,18 V8 M6,8 H18 M9.5,5 H14.5 M10,11 V17 M14,11 V17" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Margin="0,18,0,0"
+                               Style="{StaticResource Style.Text.Title}"
+                               Text="{DynamicResource L.Delete.Title}" />
+                    <TextBlock x:Name="DeleteProfileMessage"
+                               Margin="0,8,0,0"
+                               Style="{StaticResource Style.Text.Body}"
+                               TextWrapping="Wrap" />
+                    <Border Margin="0,18,0,0"
+                            Padding="14,12"
+                            Background="{DynamicResource Brush.State.DangerMuted}"
+                            CornerRadius="{StaticResource Radius.Control}">
+                        <TextBlock Foreground="{DynamicResource Brush.State.Danger}"
+                                   Style="{StaticResource Style.Text.Caption}"
+                                   Text="{DynamicResource L.Delete.Safety}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock x:Name="DeleteProfileErrorText"
+                               Margin="2,10,0,0"
+                               AutomationProperties.LiveSetting="Assertive"
+                               Foreground="{DynamicResource Brush.State.Danger}"
+                               Style="{StaticResource Style.Text.Caption}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                    <Grid Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CancelDeleteProfileButton"
+                                Grid.Column="1"
+                                Style="{StaticResource Style.Button.Secondary}"
+                                Click="CancelDeleteProfileDialog_Click"
+                                Content="{DynamicResource L.Common.Cancel}" />
+                        <Button x:Name="ConfirmDeleteProfileButton"
+                                Grid.Column="3"
+                                Style="{StaticResource Style.Button.Danger}"
+                                Click="ConfirmDeleteProfile_Click"
+                                Content="{DynamicResource L.Delete.Action}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <Grid x:Name="SettingsDialogOverlay"
               Panel.ZIndex="24"
               AutomationProperties.Name="{DynamicResource L.Settings.Automation}"
               Background="{DynamicResource Brush.Scrim}"
               Visibility="Collapsed">
-            <Border Width="540"
-                    Style="{StaticResource Style.Dialog}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    KeyboardNavigation.TabNavigation="Cycle">
+            <ScrollViewer Padding="24"
+                          HorizontalContentAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+              <Border Width="540"
+                      Style="{StaticResource Style.Dialog}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      KeyboardNavigation.TabNavigation="Cycle">
                 <StackPanel>
                     <Border Width="48"
                             Height="48"
@@ -773,9 +954,33 @@
                                       Grid.Column="1"
                                       VerticalAlignment="Center"
                                       Style="{StaticResource Style.SettingsToggle}"
-                                      AutomationProperties.Name="{DynamicResource L.Settings.Startup.Toggle}"
-                                      Click="StartupToggle_Click" />
+                                       AutomationProperties.Name="{DynamicResource L.Settings.Startup.Toggle}"
+                                       Click="StartupToggle_Click" />
                     </Grid>
+
+                    <StackPanel Margin="0,22,0,0">
+                        <TextBlock Style="{StaticResource Style.Text.Caption}"
+                                   Text="{DynamicResource L.Settings.Update.Title}" />
+                        <TextBlock x:Name="UpdateStatusText"
+                                   Margin="0,7,0,0"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Style="{StaticResource Style.Text.Body}"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Margin="0,12,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button x:Name="CheckForUpdatesButton"
+                                    Style="{StaticResource Style.Button.Secondary}"
+                                    Click="CheckForUpdatesButton_Click"
+                                    Content="{DynamicResource L.Settings.Update.Check}" />
+                            <Button x:Name="OpenUpdatePageButton"
+                                    Margin="10,0,0,0"
+                                    Style="{StaticResource Style.Button.Primary}"
+                                    Click="OpenUpdatePageButton_Click"
+                                    Content="{DynamicResource L.Settings.Update.Open}"
+                                    Visibility="Collapsed" />
+                        </StackPanel>
+                    </StackPanel>
 
                     <Grid Margin="0,24,0,0">
                         <Grid.ColumnDefinitions>
@@ -796,7 +1001,8 @@
                                 Content="{DynamicResource L.Common.Close}" />
                     </Grid>
                 </StackPanel>
-            </Border>
+              </Border>
+            </ScrollViewer>
         </Grid>
 
         <Grid x:Name="ChangedLoginDialogOverlay"

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -18,19 +19,30 @@ public partial class MainWindow : Window
     private readonly LocalizationService _localization;
     private readonly ApplicationSettingsService _settingsService;
     private readonly StartupRegistrationService _startupRegistration;
+    private readonly IUpdateCheckService _updateCheckService = new GitHubUpdateCheckService();
     private readonly IReadOnlyDictionary<AgentProvider, ProviderContext> _contexts;
     private readonly Dictionary<AgentProvider, ProviderNotice> _providerNotices = [];
+    private readonly Version _applicationVersion;
 
     private IReadOnlyList<AccountCardViewModel> _visibleAccounts = [];
     private AgentProvider _selectedProvider = AgentProvider.Codex;
     private PendingAccountOperation? _pendingOperation;
+    private AccountCardViewModel? _profileBeingRenamed;
+    private AccountCardViewModel? _profilePendingDeletion;
     private Guid? _confirmedReplacementProfileId;
     private IInputElement? _dialogReturnFocus;
+    private CancellationTokenSource? _updateCheckCancellationSource;
     private bool _isBusy;
+    private bool _isCheckingForUpdates;
+    private bool _activeDeletionConfirmed;
     private bool _isDarkTheme;
     private bool _suppressSettingsEvents;
     private bool _startupStateKnown = true;
     private ApplicationSettings _settings;
+    private UpdateCheckViewState _updateCheckState;
+    private Version? _latestVersion;
+    private Uri? _latestReleasePage;
+    private string? _updateFailureDetail;
 
     public MainWindow(
         LocalizationService localization,
@@ -42,6 +54,8 @@ public partial class MainWindow : Window
         _settingsService = settingsService;
         _startupRegistration = startupRegistration;
         _settings = settings;
+        _applicationVersion = GitHubUpdateCheckService.NormalizeVersion(
+            typeof(App).Assembly.GetName().Version ?? new Version(0, 1, 0));
 
         InitializeComponent();
 
@@ -85,6 +99,7 @@ public partial class MainWindow : Window
         }
 
         ApplyLanguageLayout();
+        ApplyUpdateStatusText();
         ShowProvider(AgentProvider.Codex);
     }
 
@@ -308,6 +323,262 @@ public partial class MainWindow : Window
         await AttemptSwitchAsync(account.Provider, account.ProfileId, account.Name);
     }
 
+    private void ProfileName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 ||
+            _isBusy ||
+            sender is not TextBlock { DataContext: AccountCardViewModel account })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowRenameProfileDialog(account);
+    }
+
+    private void ProfileName_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.F2) ||
+            _isBusy ||
+            sender is not TextBlock { DataContext: AccountCardViewModel account })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowRenameProfileDialog(account);
+    }
+
+    private void ShowRenameProfileDialog(AccountCardViewModel account)
+    {
+        _profileBeingRenamed = account;
+        RenameProfileDescription.Text = T("Rename.Description", account.Name);
+        RenameProfileTextBox.Text = account.Name;
+        RenameProfileValidationText.Visibility = Visibility.Collapsed;
+        RememberDialogFocusIfOpening(RenameProfileDialogOverlay);
+        RenameProfileDialogOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(() =>
+        {
+            RenameProfileTextBox.Focus();
+            RenameProfileTextBox.SelectAll();
+        });
+    }
+
+    private async void ConfirmRenameProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var account = _profileBeingRenamed;
+        if (_isBusy || account is null)
+        {
+            return;
+        }
+
+        var displayName = RenameProfileTextBox.Text.Trim();
+        if (!ValidateProfileName(displayName, RenameProfileTextBox, RenameProfileValidationText))
+        {
+            return;
+        }
+
+        SetBusy(true);
+        ProfileManagementResult result;
+        try
+        {
+            result = await _contexts[account.Provider].SwitchService.RenameProfileAsync(
+                account.Provider,
+                account.ProfileId,
+                displayName);
+        }
+        catch (Exception exception)
+        {
+            result = new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Failed,
+                ErrorMessage = exception.Message,
+            };
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+
+        switch (result.Status)
+        {
+            case ProfileManagementStatus.Success:
+                CloseRenameProfileDialog();
+                if (_selectedProvider != account.Provider || ReloadProfiles(account.Provider))
+                {
+                    SetStatus(T("Status.ProfileRenamed", account.Name, displayName), StatusTone.Success);
+                }
+                break;
+            case ProfileManagementStatus.DisplayNameConflict:
+                RenameProfileValidationText.Text = T("Rename.NameConflict", displayName);
+                RenameProfileValidationText.Visibility = Visibility.Visible;
+                RenameProfileTextBox.Focus();
+                RenameProfileTextBox.SelectAll();
+                break;
+            case ProfileManagementStatus.ProfileNotFound:
+                CloseRenameProfileDialog();
+                ReloadProfiles(account.Provider);
+                SetStatus(T("Status.ProfileManagementMissing"), StatusTone.Error);
+                break;
+            case ProfileManagementStatus.LockUnavailable:
+                SetStatus(T("Status.OperationInProgress"), StatusTone.Warning);
+                break;
+            case ProfileManagementStatus.RecoveryRequired:
+                SetStatus(T("Status.ProfileManagementRecoveryRequired"), StatusTone.Error);
+                break;
+            default:
+                SetStatus(
+                    BuildFailureMessage(T("Rename.Failure"), result.ErrorMessage),
+                    StatusTone.Error);
+                break;
+        }
+    }
+
+    private void RenameProfileTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ConfirmRenameProfile_Click(sender, new RoutedEventArgs());
+    }
+
+    private void RenameProfileTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (RenameProfileValidationText is not null)
+        {
+            RenameProfileValidationText.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void CancelRenameProfileDialog_Click(object sender, RoutedEventArgs e) =>
+        CloseRenameProfileDialog();
+
+    private void CloseRenameProfileDialog()
+    {
+        var wasVisible = RenameProfileDialogOverlay.Visibility == Visibility.Visible;
+        RenameProfileDialogOverlay.Visibility = Visibility.Collapsed;
+        RenameProfileValidationText.Visibility = Visibility.Collapsed;
+        RenameProfileTextBox.Clear();
+        _profileBeingRenamed = null;
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
+    }
+
+    private void DeleteProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy || sender is not Button { DataContext: AccountCardViewModel account })
+        {
+            return;
+        }
+
+        _profilePendingDeletion = account;
+        _activeDeletionConfirmed = account.IsActive;
+        DeleteProfileMessage.Text = T(
+            account.IsActive ? "Delete.ActiveMessage" : "Delete.Message",
+            account.Name);
+        DeleteProfileErrorText.Visibility = Visibility.Collapsed;
+        RememberDialogFocusIfOpening(DeleteProfileDialogOverlay);
+        DeleteProfileDialogOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(() => Keyboard.Focus(CancelDeleteProfileButton));
+    }
+
+    private async void ConfirmDeleteProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var account = _profilePendingDeletion;
+        if (_isBusy || account is null)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        ProfileManagementResult result;
+        try
+        {
+            result = await _contexts[account.Provider].SwitchService.DeleteProfileAsync(
+                account.Provider,
+                account.ProfileId,
+                _activeDeletionConfirmed);
+        }
+        catch (Exception exception)
+        {
+            result = new ProfileManagementResult
+            {
+                Status = ProfileManagementStatus.Failed,
+                ErrorMessage = exception.Message,
+            };
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+
+        switch (result.Status)
+        {
+            case ProfileManagementStatus.Success:
+                CloseDeleteProfileDialog();
+                if (_selectedProvider != account.Provider || ReloadProfiles(account.Provider))
+                {
+                    SetStatus(
+                        T(
+                            result.RemovedActiveSelection
+                                ? "Status.ActiveProfileDeleted"
+                                : "Status.ProfileDeleted",
+                            account.Name),
+                        result.RemovedActiveSelection ? StatusTone.Warning : StatusTone.Success);
+                }
+                break;
+            case ProfileManagementStatus.ActiveProfileConfirmationRequired:
+                // Another app instance can activate this profile after the dialog opens.
+                // Update the warning and require one more explicit click before deletion.
+                _activeDeletionConfirmed = true;
+                DeleteProfileMessage.Text = T("Delete.ActiveMessage", account.Name);
+                DeleteProfileErrorText.Text = T("Delete.ActiveConfirmation");
+                DeleteProfileErrorText.Visibility = Visibility.Visible;
+                Keyboard.Focus(CancelDeleteProfileButton);
+                break;
+            case ProfileManagementStatus.ProfileNotFound:
+                CloseDeleteProfileDialog();
+                ReloadProfiles(account.Provider);
+                SetStatus(T("Status.ProfileManagementMissing"), StatusTone.Error);
+                break;
+            case ProfileManagementStatus.LockUnavailable:
+                DeleteProfileErrorText.Text = T("Status.OperationInProgress");
+                DeleteProfileErrorText.Visibility = Visibility.Visible;
+                break;
+            case ProfileManagementStatus.RecoveryRequired:
+                DeleteProfileErrorText.Text = T("Status.ProfileManagementRecoveryRequired");
+                DeleteProfileErrorText.Visibility = Visibility.Visible;
+                break;
+            default:
+                DeleteProfileErrorText.Text = BuildFailureMessage(
+                    T("Delete.Failure"),
+                    result.ErrorMessage);
+                DeleteProfileErrorText.Visibility = Visibility.Visible;
+                break;
+        }
+    }
+
+    private void CancelDeleteProfileDialog_Click(object sender, RoutedEventArgs e) =>
+        CloseDeleteProfileDialog();
+
+    private void CloseDeleteProfileDialog()
+    {
+        var wasVisible = DeleteProfileDialogOverlay.Visibility == Visibility.Visible;
+        DeleteProfileDialogOverlay.Visibility = Visibility.Collapsed;
+        DeleteProfileErrorText.Visibility = Visibility.Collapsed;
+        _profilePendingDeletion = null;
+        _activeDeletionConfirmed = false;
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
+    }
+
     private void SaveCurrentLogin_Click(object sender, RoutedEventArgs e)
     {
         if (_isBusy)
@@ -346,13 +617,13 @@ public partial class MainWindow : Window
         }
 
         var displayName = ProfileNameTextBox.Text.Trim();
-        if (!ValidateProfileName(displayName))
+        if (!ValidateProfileName(displayName, ProfileNameTextBox, ProfileNameValidationText))
         {
             return;
         }
 
         var existingProfile = _visibleAccounts.FirstOrDefault(account =>
-            string.Equals(account.Name, displayName, StringComparison.CurrentCultureIgnoreCase));
+            string.Equals(account.Name, displayName, StringComparison.OrdinalIgnoreCase));
         if (existingProfile is not null && _confirmedReplacementProfileId != existingProfile.ProfileId)
         {
             _confirmedReplacementProfileId = existingProfile.ProfileId;
@@ -369,7 +640,10 @@ public partial class MainWindow : Window
             existingProfile?.ProfileId);
     }
 
-    private bool ValidateProfileName(string displayName)
+    private bool ValidateProfileName(
+        string displayName,
+        TextBox input,
+        TextBlock validationText)
     {
         string? validationMessage = null;
         if (string.IsNullOrWhiteSpace(displayName))
@@ -382,13 +656,13 @@ public partial class MainWindow : Window
         }
         if (validationMessage is null)
         {
-            ProfileNameValidationText.Visibility = Visibility.Collapsed;
+            validationText.Visibility = Visibility.Collapsed;
             return true;
         }
 
-        ProfileNameValidationText.Text = validationMessage;
-        ProfileNameValidationText.Visibility = Visibility.Visible;
-        ProfileNameTextBox.Focus();
+        validationText.Text = validationMessage;
+        validationText.Visibility = Visibility.Visible;
+        input.Focus();
         return false;
     }
 
@@ -827,8 +1101,14 @@ public partial class MainWindow : Window
         CancelProcessDialogButton.IsEnabled = !isBusy;
         ConfirmSaveProfileButton.IsEnabled = !isBusy;
         ConfirmChangedLoginButton.IsEnabled = !isBusy;
+        ConfirmRenameProfileButton.IsEnabled = !isBusy;
+        CancelRenameProfileButton.IsEnabled = !isBusy;
+        ConfirmDeleteProfileButton.IsEnabled = !isBusy;
+        CancelDeleteProfileButton.IsEnabled = !isBusy;
         LanguageComboBox.IsEnabled = !isBusy;
         StartupToggle.IsEnabled = !isBusy && _startupStateKnown;
+        CheckForUpdatesButton.IsEnabled = !isBusy && !_isCheckingForUpdates;
+        OpenUpdatePageButton.IsEnabled = !isBusy && !_isCheckingForUpdates;
     }
 
     private void SetStatus(string message, StatusTone tone)
@@ -897,6 +1177,7 @@ public partial class MainWindow : Window
         }
 
         RememberDialogFocusIfOpening(SettingsDialogOverlay);
+        ApplyUpdateStatusText();
         SettingsDialogOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => Keyboard.Focus(LanguageComboBox));
     }
@@ -916,6 +1197,7 @@ public partial class MainWindow : Window
         {
             _localization.Apply(selectedLanguage.Code);
             ApplyLanguageLayout();
+            ApplyUpdateStatusText();
             _settingsService.Save(proposedSettings);
             _settings = proposedSettings;
             SettingsErrorText.Visibility = Visibility.Collapsed;
@@ -929,6 +1211,7 @@ public partial class MainWindow : Window
         {
             _localization.Apply(previousSettings.Language);
             ApplyLanguageLayout();
+            ApplyUpdateStatusText();
             _suppressSettingsEvents = true;
             LanguageComboBox.SelectedItem = _localization.SupportedLanguages.First(option =>
                 string.Equals(option.Code, previousSettings.Language, StringComparison.OrdinalIgnoreCase));
@@ -1011,6 +1294,100 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy || _isCheckingForUpdates)
+        {
+            return;
+        }
+
+        _updateCheckCancellationSource?.Dispose();
+        _updateCheckCancellationSource = new CancellationTokenSource();
+        var cancellationToken = _updateCheckCancellationSource.Token;
+        _isCheckingForUpdates = true;
+        _updateCheckState = UpdateCheckViewState.Checking;
+        _latestVersion = null;
+        _latestReleasePage = null;
+        _updateFailureDetail = null;
+        CheckForUpdatesButton.IsEnabled = false;
+        OpenUpdatePageButton.IsEnabled = false;
+        OpenUpdatePageButton.Visibility = Visibility.Collapsed;
+        ApplyUpdateStatusText();
+
+        try
+        {
+            var result = await _updateCheckService.CheckAsync(_applicationVersion, cancellationToken);
+            _latestVersion = result.LatestVersion;
+            _latestReleasePage = result.ReleasePage;
+            _updateCheckState = result.Availability == UpdateAvailability.UpdateAvailable
+                ? UpdateCheckViewState.UpdateAvailable
+                : UpdateCheckViewState.UpToDate;
+            OpenUpdatePageButton.Visibility = result.Availability == UpdateAvailability.UpdateAvailable
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _updateCheckState = UpdateCheckViewState.Idle;
+        }
+        catch (Exception exception)
+        {
+            _updateCheckState = UpdateCheckViewState.Failed;
+            _updateFailureDetail = exception.Message;
+            SetStatus(T("Settings.Update.Failure"), StatusTone.Warning);
+        }
+        finally
+        {
+            _isCheckingForUpdates = false;
+            CheckForUpdatesButton.IsEnabled = !_isBusy;
+            OpenUpdatePageButton.IsEnabled = !_isBusy;
+            ApplyUpdateStatusText();
+        }
+    }
+
+    private void OpenUpdatePageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy || _isCheckingForUpdates || _latestReleasePage is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(_latestReleasePage.AbsoluteUri)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception exception)
+        {
+            ShowSettingsError(T("Settings.Update.OpenFailure", exception.Message));
+        }
+    }
+
+    private void ApplyUpdateStatusText()
+    {
+        if (UpdateStatusText is null)
+        {
+            return;
+        }
+
+        var currentVersion = GitHubUpdateCheckService.FormatVersion(_applicationVersion);
+        UpdateStatusText.Text = _updateCheckState switch
+        {
+            UpdateCheckViewState.Checking => T("Settings.Update.Checking", currentVersion),
+            UpdateCheckViewState.UpToDate => T("Settings.Update.UpToDate", currentVersion),
+            UpdateCheckViewState.UpdateAvailable when _latestVersion is not null => T(
+                "Settings.Update.Available",
+                currentVersion,
+                GitHubUpdateCheckService.FormatVersion(_latestVersion)),
+            UpdateCheckViewState.Failed => BuildFailureMessage(
+                T("Settings.Update.Failure"),
+                _updateFailureDetail),
+            _ => T("Settings.Update.Current", currentVersion),
+        };
+    }
+
     private void CloseSettingsDialog_Click(object sender, RoutedEventArgs e)
     {
         var wasVisible = SettingsDialogOverlay.Visibility == Visibility.Visible;
@@ -1059,6 +1436,8 @@ public partial class MainWindow : Window
     private bool IsAnyDialogVisible() =>
         ProcessDialogOverlay.Visibility == Visibility.Visible ||
         SaveProfileDialogOverlay.Visibility == Visibility.Visible ||
+        RenameProfileDialogOverlay.Visibility == Visibility.Visible ||
+        DeleteProfileDialogOverlay.Visibility == Visibility.Visible ||
         SettingsDialogOverlay.Visibility == Visibility.Visible ||
         ChangedLoginDialogOverlay.Visibility == Visibility.Visible;
 
@@ -1076,6 +1455,7 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(
             MaximizeButton,
             T(WindowState == WindowState.Maximized ? "Window.Restore" : "Window.Maximize"));
+        ApplyUpdateStatusText();
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1114,6 +1494,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        _updateCheckCancellationSource?.Cancel();
         if (!_isBusy)
         {
             return;
@@ -1178,6 +1559,16 @@ public partial class MainWindow : Window
         else if (SaveProfileDialogOverlay.Visibility == Visibility.Visible)
         {
             CloseSaveProfileDialog();
+            e.Handled = true;
+        }
+        else if (RenameProfileDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
+        {
+            CloseRenameProfileDialog();
+            e.Handled = true;
+        }
+        else if (DeleteProfileDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
+        {
+            CloseDeleteProfileDialog();
             e.Handled = true;
         }
         else if (ProcessDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
@@ -1260,6 +1651,15 @@ public partial class MainWindow : Window
         Success,
         Warning,
         Error,
+    }
+
+    private enum UpdateCheckViewState
+    {
+        Idle,
+        Checking,
+        UpToDate,
+        UpdateAvailable,
+        Failed,
     }
 
     private enum PendingOperationKind
@@ -1370,6 +1770,10 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
     public string AutomationActionLabel => IsActive
         ? _localization.Get("Card.RestoreAutomation", Name)
         : _localization.Get("Card.SwitchAutomation", Name);
+
+    public string RenameHint => _localization.Get("Card.RenameHint", Name);
+
+    public string DeleteAutomationLabel => _localization.Get("Card.DeleteAutomation", Name);
 
     private static string CreateInitials(string value)
     {
