@@ -440,6 +440,38 @@ public sealed class AuthenticationProfileVault
 
     public AuthenticationProfileListResult ListProfilesWithIssues(AgentProvider provider)
     {
+        var metadataResult = ListProfileMetadataWithIssues(provider);
+        var profiles = new List<AuthenticationProfileMetadata>(metadataResult.Profiles.Count);
+        var issues = new List<AuthenticationProfileLoadIssue>(metadataResult.Issues);
+        foreach (var profile in metadataResult.Profiles)
+        {
+            var blobPath = GetBlobPath(provider, profile.ProfileId);
+            try
+            {
+                ValidateProtectedCredential(profile);
+                profiles.Add(profile);
+            }
+            catch (Exception exception) when (IsIsolatableProfileMetadataException(exception))
+            {
+                // A card without a decryptable encrypted snapshot cannot be switched
+                // safely. Keep both files untouched and surface it as a load issue.
+                issues.Add(new AuthenticationProfileLoadIssue
+                {
+                    FileName = Path.GetFileName(blobPath),
+                    Message = exception.Message
+                });
+            }
+        }
+
+        return new AuthenticationProfileListResult
+        {
+            Profiles = profiles,
+            Issues = issues
+        };
+    }
+
+    internal AuthenticationProfileListResult ListProfileMetadataWithIssues(AgentProvider provider)
+    {
         var directory = GetProviderDirectory(provider);
         try
         {
@@ -723,8 +755,28 @@ public sealed class AuthenticationProfileVault
     }
 
     private static bool IsIsolatableProfileMetadataException(Exception exception) =>
-        exception is InvalidDataException or IOException or UnauthorizedAccessException or
+        exception is CryptographicException or InvalidDataException or IOException or UnauthorizedAccessException or
             System.Security.SecurityException;
+
+    private void ValidateProtectedCredential(AuthenticationProfileMetadata metadata)
+    {
+        var protectedBytes = ReadBoundedFile(
+            GetBlobPath(metadata.Provider, metadata.ProfileId),
+            MaximumProtectedBlobSizeBytes);
+        var entropy = CreateEntropy(metadata);
+        byte[]? plaintext = null;
+        try
+        {
+            plaintext = _protector.Unprotect(protectedBytes, entropy);
+            ValidateCredential(plaintext);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(protectedBytes);
+            CryptographicOperations.ZeroMemory(entropy);
+            ZeroIfPresent(plaintext);
+        }
+    }
 
     private static byte[] ReadBoundedFile(string path, int maximumSize)
     {

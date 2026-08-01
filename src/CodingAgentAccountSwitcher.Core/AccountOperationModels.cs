@@ -9,6 +9,7 @@ public enum AccountOperationStatus
     AuthenticationFileMissing,
     AuthenticationFileEmpty,
     ProfileNotFound,
+    DisplayNameConflict,
     ActiveProfileUpdateConfirmationRequired,
     SavedSnapshotRestoreConfirmationRequired,
     LockUnavailable,

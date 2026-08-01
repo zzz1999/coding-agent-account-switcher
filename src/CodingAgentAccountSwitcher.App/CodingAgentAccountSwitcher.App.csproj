@@ -11,6 +11,7 @@
     <AssemblyTitle>Coding Agent Account Switcher</AssemblyTitle>
     <RootNamespace>CodingAgentAccountSwitcher.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\CodingAgentAccountSwitcher.ico</ApplicationIcon>
     <Version>0.1.0</Version>
     <Authors>Coding Agent Account Switcher contributors</Authors>
     <Product>Coding Agent Account Switcher</Product>
@@ -19,5 +20,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\CodingAgentAccountSwitcher.png" />
+  </ItemGroup>
 
 </Project>

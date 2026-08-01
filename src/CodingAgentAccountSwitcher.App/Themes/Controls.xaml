@@ -506,7 +506,7 @@
 
     <Style x:Key="Style.AccountCard" TargetType="Border">
         <Setter Property="Padding" Value="20" />
-        <Setter Property="Margin" Value="0,0,14,0" />
+        <Setter Property="Margin" Value="0" />
         <Setter Property="MinHeight" Value="212" />
         <Setter Property="Background" Value="{DynamicResource Brush.Surface.Glass}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Subtle}" />

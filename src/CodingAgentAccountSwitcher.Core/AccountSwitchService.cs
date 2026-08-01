@@ -124,7 +124,7 @@ public sealed class AccountSwitchService
 
             cancellationToken.ThrowIfCancellationRequested();
             var trimmedDisplayName = displayName.Trim();
-            if (_vault.ListProfiles(provider).Any(profile =>
+            if (_vault.ListProfileMetadataWithIssues(provider).Profiles.Any(profile =>
                     profile.ProfileId != profileId &&
                     string.Equals(
                         profile.DisplayName,
@@ -244,6 +244,22 @@ public sealed class AccountSwitchService
         var authenticationFileRead = false;
         try
         {
+            var trimmedDisplayName = displayName.Trim();
+            var matchingProfile = _vault.ListProfilesWithIssues(adapter.Provider).Profiles
+                .FirstOrDefault(profile => string.Equals(
+                    profile.DisplayName,
+                    trimmedDisplayName,
+                    StringComparison.OrdinalIgnoreCase));
+            if (!profileToReplace.HasValue && matchingProfile is not null)
+            {
+                return new CaptureProfileResult
+                {
+                    Status = AccountOperationStatus.DisplayNameConflict,
+                    Profile = matchingProfile,
+                    ProcessInspection = inspection
+                };
+            }
+
             currentCredential = adapter.ReadSnapshot();
             authenticationFileRead = true;
             var finalInspection = _processInspector.Inspect(adapter);
@@ -261,15 +277,21 @@ public sealed class AccountSwitchService
             if (profileToReplace.HasValue)
             {
                 var existingProfile = _vault.GetProfile(adapter.Provider, profileToReplace.Value);
-                if (!string.Equals(existingProfile.DisplayName, displayName, StringComparison.Ordinal))
+                if (!string.Equals(existingProfile.DisplayName, trimmedDisplayName, StringComparison.Ordinal) ||
+                    (matchingProfile is not null && matchingProfile.ProfileId != existingProfile.ProfileId))
                 {
-                    throw new InvalidOperationException("The replacement profile label does not match.");
+                    return new CaptureProfileResult
+                    {
+                        Status = AccountOperationStatus.DisplayNameConflict,
+                        Profile = matchingProfile,
+                        ProcessInspection = inspection
+                    };
                 }
             }
 
             var profile = _vault.CaptureProfileAndSetActive(
                 adapter.Provider,
-                displayName,
+                trimmedDisplayName,
                 currentCredential,
                 profileToReplace);
 

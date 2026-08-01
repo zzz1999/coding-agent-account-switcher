@@ -1,3 +1,4 @@
+using System.Text;
 using System.Windows;
 using CodingAgentAccountSwitcher.App;
 
@@ -11,7 +12,7 @@ public sealed class ApplicationPreferencesTests
         using var temporary = new TemporaryDirectory();
         var settingsPath = Path.Combine(temporary.Path, "preferences", "settings.json");
         var service = new ApplicationSettingsService(settingsPath);
-        var first = new ApplicationSettings("ja-JP", true);
+        var first = new ApplicationSettings("ja-JP", true, true);
         var second = new ApplicationSettings("ar-SA", false);
 
         service.Save(first);
@@ -22,6 +23,17 @@ public sealed class ApplicationPreferencesTests
         Assert.Equal(second, service.Load());
         Assert.Single(Directory.GetFiles(Path.GetDirectoryName(settingsPath)!));
         Assert.Equal("settings.json", Path.GetFileName(Directory.GetFiles(Path.GetDirectoryName(settingsPath)!).Single()));
+    }
+
+    [Fact]
+    public void LegacySettingsWithoutThemePreferenceDefaultToLightTheme()
+    {
+        using var temporary = new TemporaryDirectory();
+        var settingsPath = Path.Combine(temporary.Path, "settings.json");
+        File.WriteAllText(settingsPath, "{\"Language\":\"de-DE\",\"StartWithWindows\":true}");
+        var service = new ApplicationSettingsService(settingsPath);
+
+        Assert.Equal(new ApplicationSettings("de-DE", true, false), service.Load());
     }
 
     [Theory]
@@ -71,11 +83,40 @@ public sealed class ApplicationPreferencesTests
 
         var catalogs = LocalizationCatalog.Create();
         Assert.Equal(expectedLanguages.Length, catalogs.Count);
-        Assert.Equal(157, catalogs["en-US"].Count);
+        Assert.Equal(161, catalogs["en-US"].Count);
         foreach (var language in expectedLanguages)
         {
             Assert.Equal(catalogs["en-US"].Keys.Order(), catalogs[language].Keys.Order());
+            Assert.All(catalogs[language].Values, value =>
+            {
+                Assert.DoesNotContain("Â·", value, StringComparison.Ordinal);
+                Assert.DoesNotContain("â€", value, StringComparison.Ordinal);
+                Assert.DoesNotContain("ï»¿", value, StringComparison.Ordinal);
+                Assert.DoesNotContain("�", value, StringComparison.Ordinal);
+            });
+
+            foreach (var pair in catalogs["en-US"])
+            {
+                var expectedArguments = CompositeFormat.Parse(pair.Value).MinimumArgumentCount;
+                var translatedArguments = CompositeFormat.Parse(catalogs[language][pair.Key])
+                    .MinimumArgumentCount;
+                Assert.Equal(expectedArguments, translatedArguments);
+            }
         }
+    }
+
+    [Fact]
+    public void AccountInitialsKeepCompleteUnicodeTextElements()
+    {
+        var card = new AccountCardViewModel(
+            Guid.NewGuid(),
+            "😀 Work",
+            AgentProvider.Codex,
+            DateTimeOffset.UtcNow,
+            false,
+            new LocalizationService());
+
+        Assert.Equal("😀W", card.Initials);
     }
 
     [Fact]

@@ -36,14 +36,14 @@ internal static class AuthenticationSnapshotCodec
         var json = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
         try
         {
-            var result = new byte[Magic.Length + json.Length];
-            Magic.CopyTo(result, 0);
-            json.CopyTo(result, Magic.Length);
-            if (result.Length > AuthenticationProfileVault.MaximumCredentialSizeBytes)
+            if (json.Length > AuthenticationProfileVault.MaximumCredentialSizeBytes - Magic.Length)
             {
                 throw new InvalidDataException("The account snapshot is too large.");
             }
 
+            var result = new byte[Magic.Length + json.Length];
+            Magic.CopyTo(result, 0);
+            json.CopyTo(result, Magic.Length);
             return result;
         }
         finally
@@ -76,7 +76,15 @@ internal static class AuthenticationSnapshotCodec
         }
         catch (JsonException exception)
         {
+            Zero(snapshot);
+            snapshot = null;
             throw new InvalidDataException("The managed account snapshot is invalid.", exception);
+        }
+        catch
+        {
+            Zero(snapshot);
+            snapshot = null;
+            throw;
         }
     }
 

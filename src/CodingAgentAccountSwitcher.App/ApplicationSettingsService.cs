@@ -3,9 +3,12 @@ using System.Text.Json;
 
 namespace CodingAgentAccountSwitcher.App;
 
-public sealed record ApplicationSettings(string Language, bool StartWithWindows)
+public sealed record ApplicationSettings(
+    string Language,
+    bool StartWithWindows,
+    bool UseDarkTheme = false)
 {
-    public static ApplicationSettings Default { get; } = new("en-US", false);
+    public static ApplicationSettings Default { get; } = new("en-US", false, false);
 }
 
 public sealed class ApplicationSettingsService

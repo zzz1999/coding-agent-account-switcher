@@ -3,6 +3,24 @@ namespace CodingAgentAccountSwitcher.Core.Tests;
 public sealed class AccountSwitchServiceTests
 {
     [Fact]
+    public async Task CaptureRejectsAStaleRequestThatWouldCreateADuplicateDisplayName()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        File.WriteAllBytes(authenticationPath, [4, 5, 6]);
+        var vault = new AuthenticationProfileVault(Path.Combine(temporary.Path, "vault"));
+        var existing = vault.CreateProfile(AgentProvider.Codex, "Personal", [1, 2, 3]);
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+
+        var result = await service.CaptureCurrentLoginAsync(adapter, "personal");
+
+        Assert.Equal(AccountOperationStatus.DisplayNameConflict, result.Status);
+        Assert.Equal(existing.ProfileId, result.Profile?.ProfileId);
+        Assert.Single(vault.ListProfiles(AgentProvider.Codex));
+        Assert.Null(vault.GetActiveProfile(AgentProvider.Codex));
+    }
+
+    [Fact]
     public async Task CaptureAndSwitchPreserveRefreshedSourceAndUnrelatedConfiguration()
     {
         using var temporary = new TemporaryDirectory();

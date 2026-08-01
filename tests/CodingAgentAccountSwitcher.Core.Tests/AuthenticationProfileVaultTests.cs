@@ -47,6 +47,28 @@ public sealed class AuthenticationProfileVaultTests
     }
 
     [Fact]
+    public void SafeListingHidesProfileWhoseEncryptedSnapshotCannotBeDecrypted()
+    {
+        using var temporary = new TemporaryDirectory();
+        var vault = new AuthenticationProfileVault(temporary.Path);
+        var valid = vault.CreateProfile(AgentProvider.ClaudeCode, "Personal", [1, 2, 3]);
+        var damaged = vault.CreateProfile(AgentProvider.ClaudeCode, "Work", [4, 5, 6]);
+        var damagedBlobPath = Directory.GetFiles(
+            temporary.Path,
+            $"{damaged.ProfileId:N}.vault",
+            SearchOption.AllDirectories).Single();
+        byte[] damagedBlob = [9, 8, 7];
+        File.WriteAllBytes(damagedBlobPath, damagedBlob);
+
+        var result = vault.ListProfilesWithIssues(AgentProvider.ClaudeCode);
+
+        Assert.Equal(valid.ProfileId, Assert.Single(result.Profiles).ProfileId);
+        Assert.Equal(Path.GetFileName(damagedBlobPath), Assert.Single(result.Issues).FileName);
+        Assert.Equal(damagedBlob, File.ReadAllBytes(damagedBlobPath));
+        Assert.Throws<InvalidDataException>(() => vault.ListProfiles(AgentProvider.ClaudeCode));
+    }
+
+    [Fact]
     public void SafeListingIsolatesCorruptedMetadataWithoutChangingItOrHidingValidProfiles()
     {
         using var temporary = new TemporaryDirectory();
@@ -93,6 +115,26 @@ public sealed class AuthenticationProfileVaultTests
         Assert.Equal(valid.ProfileId, Assert.Single(result.Profiles).ProfileId);
         Assert.Equal(Path.GetFileName(metadataPath), Assert.Single(result.Issues).FileName);
         Assert.Equal(alteredMetadata, File.ReadAllText(metadataPath));
+    }
+
+    [Fact]
+    public void SafeListingHidesProfileWhoseEncryptedSnapshotIsMissing()
+    {
+        using var temporary = new TemporaryDirectory();
+        var vault = new AuthenticationProfileVault(temporary.Path);
+        var valid = vault.CreateProfile(AgentProvider.Codex, "Personal", [1, 2, 3]);
+        var damaged = vault.CreateProfile(AgentProvider.Codex, "Work", [4, 5, 6]);
+        var damagedBlobPath = Directory.GetFiles(
+            temporary.Path,
+            $"{damaged.ProfileId:N}.vault",
+            SearchOption.AllDirectories).Single();
+        File.Delete(damagedBlobPath);
+
+        var result = vault.ListProfilesWithIssues(AgentProvider.Codex);
+
+        Assert.Equal(valid.ProfileId, Assert.Single(result.Profiles).ProfileId);
+        Assert.Equal(Path.GetFileName(damagedBlobPath), Assert.Single(result.Issues).FileName);
+        Assert.Throws<InvalidDataException>(() => vault.ListProfiles(AgentProvider.Codex));
     }
 
     [Fact]

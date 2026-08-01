@@ -270,17 +270,12 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="32"
-                                Height="32"
-                                Background="{DynamicResource Brush.Accent.Muted}"
-                                CornerRadius="10">
-                            <TextBlock HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="13"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource Brush.Accent.Foreground}"
-                                       Text="AS" />
-                        </Border>
+                        <Image Width="34"
+                               Height="34"
+                               SnapsToDevicePixels="True"
+                               Source="/Assets/CodingAgentAccountSwitcher.png"
+                               Stretch="Uniform"
+                               UseLayoutRounding="True" />
                         <TextBlock Margin="11,0,0,0"
                                    VerticalAlignment="Center"
                                    FontSize="13"
@@ -389,6 +384,7 @@
 
                 <ScrollViewer Grid.Row="1"
                               Padding="34,22,34,22"
+                              FocusVisualStyle="{x:Null}"
                               HorizontalContentAlignment="Stretch"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
@@ -482,7 +478,21 @@
 
                         <Grid>
                             <ItemsControl x:Name="AccountItems"
+                                          AlternationCount="2"
                                           ItemTemplate="{StaticResource AccountCardTemplate}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0,0,0,14" />
+                                        <Style.Triggers>
+                                            <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                                                <Setter Property="Margin" Value="0,0,7,14" />
+                                            </Trigger>
+                                            <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                                <Setter Property="Margin" Value="7,0,0,14" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <UniformGrid Columns="2" />
@@ -491,6 +501,7 @@
                             </ItemsControl>
                             <Border x:Name="EmptyStatePanel"
                                     MinHeight="176"
+                                    Margin="0,0,0,14"
                                     Padding="24"
                                     Background="{DynamicResource Brush.Surface.Control}"
                                     BorderBrush="{DynamicResource Brush.Border.Subtle}"
@@ -515,7 +526,7 @@
                             </Border>
                         </Grid>
 
-                        <Border Margin="0,18,0,0"
+                        <Border Margin="0,4,0,0"
                                 Padding="16,13"
                                 Background="{DynamicResource Brush.State.SuccessMuted}"
                                 BorderBrush="{DynamicResource Brush.Border.Subtle}"
@@ -1072,6 +1083,52 @@
                                 Click="ConfirmChangedLoginSwitch_Click"
                                 Content="{DynamicResource L.Changed.Confirm.Action}" />
                     </WrapPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="SwitchSuccessDialogOverlay"
+              Panel.ZIndex="25"
+              AutomationProperties.Name="{DynamicResource L.SwitchSuccess.Automation}"
+              Background="{DynamicResource Brush.Scrim}"
+              Visibility="Collapsed">
+            <Border Style="{StaticResource Style.Dialog}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    KeyboardNavigation.TabNavigation="Cycle">
+                <StackPanel>
+                    <Border Width="48"
+                            Height="48"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource Brush.State.SuccessMuted}"
+                            CornerRadius="15">
+                        <Viewbox Width="23"
+                                 Height="23"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 FlowDirection="LeftToRight">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource Style.Icon.RoundedPath}"
+                                      Stroke="{DynamicResource Brush.State.Success}"
+                                      StrokeThickness="2.3"
+                                      Data="M5.5,12.5 L10,17 L18.8,7.8" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Margin="0,18,0,0"
+                               Style="{StaticResource Style.Text.Title}"
+                               Text="{DynamicResource L.SwitchSuccess.Title}" />
+                    <TextBlock x:Name="SwitchSuccessMessage"
+                               Margin="0,8,0,0"
+                               AutomationProperties.LiveSetting="Assertive"
+                               Style="{StaticResource Style.Text.Body}"
+                               TextWrapping="Wrap" />
+                    <Button x:Name="CloseSwitchSuccessButton"
+                            Margin="0,22,0,0"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource Style.Button.Primary}"
+                            Click="CloseSwitchSuccessDialog_Click"
+                            Content="{DynamicResource L.Common.Close}" />
                 </StackPanel>
             </Border>
         </Grid>

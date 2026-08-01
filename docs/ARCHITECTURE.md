@@ -40,8 +40,9 @@ core and a WPF presentation layer.
   supported cultures and can refresh the active window without restarting the
   application. Arabic also switches the application shell to right-to-left
   flow.
-- **Application preferences**: stores only the selected UI language and other
-  non-secret application choices below `%LOCALAPPDATA%\CodingAgentAccountSwitcher`.
+- **Application preferences**: stores only the selected UI language, light/dark
+  appearance, and other non-secret application choices below
+  `%LOCALAPPDATA%\CodingAgentAccountSwitcher`.
   Preferences are separate from every path-scoped authentication vault.
 - **Startup registration**: manages one application-owned value in the current
   user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. It never
@@ -78,8 +79,8 @@ core and a WPF presentation layer.
    transaction-owned temporary-file and backup-file cleanup are complete. A
    transaction recovery credential is retained until that journal deletion
    succeeds, then removed on a best-effort basis.
-10. Language and startup preferences never read or modify provider files or
-    encrypted profile blobs.
+10. Language, appearance, and startup preferences never read or modify provider
+    files or encrypted profile blobs.
 11. Reading startup state never writes to the registry. Disabling startup removes
     only the exact registration owned by the current executable. Ownership
     requires an unexpanded `REG_SZ` value whose command matches byte-for-byte;

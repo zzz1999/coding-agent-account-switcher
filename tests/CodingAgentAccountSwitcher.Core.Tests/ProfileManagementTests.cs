@@ -73,6 +73,31 @@ public sealed class ProfileManagementTests
     }
 
     [Fact]
+    public async Task RenameIgnoresUnreadableSnapshotButStillReservesItsValidatedDisplayName()
+    {
+        using var temporary = new TemporaryDirectory();
+        var vault = new AuthenticationProfileVault(temporary.Path);
+        var personal = vault.CreateProfile(AgentProvider.Codex, "Personal", [1, 2, 3]);
+        var damaged = vault.CreateProfile(AgentProvider.Codex, "Work", [4, 5, 6]);
+        File.WriteAllBytes(FindProfileFile(temporary.Path, damaged.ProfileId, ".vault"), [9, 8, 7]);
+        var service = CreateService(vault);
+
+        var conflict = await service.RenameProfileAsync(
+            AgentProvider.Codex,
+            personal.ProfileId,
+            "work");
+        var renamed = await service.RenameProfileAsync(
+            AgentProvider.Codex,
+            personal.ProfileId,
+            "Private");
+
+        Assert.Equal(ProfileManagementStatus.DisplayNameConflict, conflict.Status);
+        Assert.Equal(ProfileManagementStatus.Success, renamed.Status);
+        Assert.Equal("Private", renamed.Profile!.DisplayName);
+        Assert.Equal("Work", vault.GetProfile(AgentProvider.Codex, damaged.ProfileId).DisplayName);
+    }
+
+    [Fact]
     public async Task DeleteInactiveProfileLeavesActiveSelectionAndProfileUntouched()
     {
         using var temporary = new TemporaryDirectory();

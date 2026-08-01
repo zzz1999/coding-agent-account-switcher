@@ -32,8 +32,16 @@ internal static class ManagedConfigurationFiles
         }
 
         var bytes = new byte[(int)stream.Length];
-        stream.ReadExactly(bytes);
-        return bytes;
+        try
+        {
+            stream.ReadExactly(bytes);
+            return bytes;
+        }
+        catch
+        {
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
+            throw;
+        }
     }
 
     internal static string DecodeUtf8(byte[] bytes)
@@ -62,7 +70,7 @@ internal static class ClaudeManagedConfiguration
     internal static byte[] Capture(string path)
     {
         var source = ManagedConfigurationFiles.ReadIfExists(path);
-        if (source is null)
+        if (source is null || source.Length == 0)
         {
             return JsonSerializer.SerializeToUtf8Bytes(new JsonObject());
         }

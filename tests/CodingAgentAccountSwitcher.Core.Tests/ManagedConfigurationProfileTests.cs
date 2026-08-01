@@ -1,9 +1,39 @@
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 
 namespace CodingAgentAccountSwitcher.Core.Tests;
 
 public sealed class ManagedConfigurationProfileTests
 {
+    [Fact]
+    public void ClaudeEmptySettingsFileIsTreatedAsNoManagedConfiguration()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = new ClaudeCodeAuthenticationAdapter(temporary.Path);
+        Directory.CreateDirectory(Path.GetDirectoryName(adapter.AuthenticationFilePath)!);
+        File.WriteAllText(adapter.AuthenticationFilePath, "{\"token\":\"dummy-claude-token\"}");
+        File.WriteAllBytes(adapter.SettingsFilePath, []);
+
+        var savedSnapshot = adapter.ReadSnapshot();
+        try
+        {
+            Assert.True(AuthenticationSnapshotCodec.TryDecode(savedSnapshot, out var decoded));
+            try
+            {
+                Assert.NotNull(decoded);
+                Assert.False(ClaudeManagedConfiguration.HasManagedValues(decoded.ManagedConfiguration));
+            }
+            finally
+            {
+                AuthenticationSnapshotCodec.Zero(decoded);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(savedSnapshot);
+        }
+    }
+
     [Fact]
     public void ClaudeSettingsOnlySnapshotSwitchesManagedEnvironmentAndPreservesEverythingElse()
     {

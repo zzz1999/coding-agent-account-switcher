@@ -58,6 +58,7 @@ public partial class MainWindow : Window
             typeof(App).Assembly.GetName().Version ?? new Version(0, 1, 0));
 
         InitializeComponent();
+        ApplyTheme(_settings.UseDarkTheme);
 
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localApplicationData))
@@ -589,10 +590,10 @@ public partial class MainWindow : Window
         var personalLabel = T("Save.SuggestedPersonal");
         var workLabel = T("Save.SuggestedWork");
         var suggestedName = _visibleAccounts.All(account =>
-            !string.Equals(account.Name, personalLabel, StringComparison.CurrentCultureIgnoreCase))
+            !string.Equals(account.Name, personalLabel, StringComparison.OrdinalIgnoreCase))
             ? personalLabel
             : _visibleAccounts.All(account =>
-                !string.Equals(account.Name, workLabel, StringComparison.CurrentCultureIgnoreCase))
+                !string.Equals(account.Name, workLabel, StringComparison.OrdinalIgnoreCase))
                 ? workLabel
                 : string.Empty;
 
@@ -788,6 +789,11 @@ public partial class MainWindow : Window
                 ReloadProfiles(provider);
                 SetStatus(T("Status.ProfileReplaceMissing"), StatusTone.Error);
                 break;
+            case AccountOperationStatus.DisplayNameConflict:
+                CloseProcessDialog();
+                ReloadProfiles(provider);
+                SetStatus(T("Rename.NameConflict", displayName), StatusTone.Warning);
+                break;
             case AccountOperationStatus.LockUnavailable:
                 CloseProcessDialog();
                 SetStatus(T("Status.OperationInProgress"), StatusTone.Warning);
@@ -862,11 +868,15 @@ public partial class MainWindow : Window
                 CloseChangedLoginDialog();
                 _providerNotices.Remove(provider);
                 var switchProfilesLoaded = _selectedProvider != provider || ReloadProfiles(provider);
+                var activeDisplayName = _visibleAccounts
+                    .FirstOrDefault(account => account.ProfileId == profileId)
+                    ?.Name ?? displayName;
                 if (switchProfilesLoaded)
                 {
-                    SetStatus(T("Status.NowActive", displayName, ProviderDisplayName(provider)),
+                    SetStatus(T("Status.NowActive", activeDisplayName, ProviderDisplayName(provider)),
                         StatusTone.Success);
                 }
+                ShowSwitchSuccessDialog(activeDisplayName);
                 break;
             case AccountOperationStatus.AlreadyActive:
                 CloseProcessDialog();
@@ -1109,6 +1119,29 @@ public partial class MainWindow : Window
         StartupToggle.IsEnabled = !isBusy && _startupStateKnown;
         CheckForUpdatesButton.IsEnabled = !isBusy && !_isCheckingForUpdates;
         OpenUpdatePageButton.IsEnabled = !isBusy && !_isCheckingForUpdates;
+        CloseSwitchSuccessButton.IsEnabled = !isBusy;
+    }
+
+    private void ShowSwitchSuccessDialog(string displayName)
+    {
+        SwitchSuccessMessage.Text = T("SwitchSuccess.Message", displayName);
+        RememberDialogFocusIfOpening(SwitchSuccessDialogOverlay);
+        SwitchSuccessDialogOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(() => Keyboard.Focus(CloseSwitchSuccessButton));
+    }
+
+    private void CloseSwitchSuccessDialog_Click(object sender, RoutedEventArgs e) =>
+        CloseSwitchSuccessDialog();
+
+    private void CloseSwitchSuccessDialog()
+    {
+        var wasVisible = SwitchSuccessDialogOverlay.Visibility == Visibility.Visible;
+        SwitchSuccessDialogOverlay.Visibility = Visibility.Collapsed;
+        SwitchSuccessMessage.Text = string.Empty;
+        if (wasVisible)
+        {
+            RestoreDialogFocus();
+        }
     }
 
     private void SetStatus(string message, StatusTone tone)
@@ -1125,7 +1158,28 @@ public partial class MainWindow : Window
 
     private void ThemeButton_Click(object sender, RoutedEventArgs e)
     {
-        _isDarkTheme = !_isDarkTheme;
+        var previousSettings = _settings;
+        var proposedSettings = previousSettings with { UseDarkTheme = !previousSettings.UseDarkTheme };
+        try
+        {
+            ApplyTheme(proposedSettings.UseDarkTheme);
+            _settingsService.Save(proposedSettings);
+        }
+        catch (Exception exception)
+        {
+            ApplyTheme(previousSettings.UseDarkTheme);
+            ShowSettingsError(T("Settings.ThemeFailure", exception.Message));
+            return;
+        }
+
+        _settings = proposedSettings;
+        SettingsErrorText.Visibility = Visibility.Collapsed;
+        SetStatus(T(_isDarkTheme ? "Status.DarkTheme" : "Status.LightTheme"), StatusTone.Ready);
+    }
+
+    private void ApplyTheme(bool useDarkTheme)
+    {
+        _isDarkTheme = useDarkTheme;
         var dictionaries = Application.Current.Resources.MergedDictionaries;
         var themeIndex = dictionaries
             .Select((dictionary, index) => (dictionary, index))
@@ -1142,7 +1196,6 @@ public partial class MainWindow : Window
 
         ThemeMoonIcon.Visibility = _isDarkTheme ? Visibility.Collapsed : Visibility.Visible;
         ThemeSunIcon.Visibility = _isDarkTheme ? Visibility.Visible : Visibility.Collapsed;
-        SetStatus(T(_isDarkTheme ? "Status.DarkTheme" : "Status.LightTheme"), StatusTone.Ready);
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1439,7 +1492,8 @@ public partial class MainWindow : Window
         RenameProfileDialogOverlay.Visibility == Visibility.Visible ||
         DeleteProfileDialogOverlay.Visibility == Visibility.Visible ||
         SettingsDialogOverlay.Visibility == Visibility.Visible ||
-        ChangedLoginDialogOverlay.Visibility == Visibility.Visible;
+        ChangedLoginDialogOverlay.Visibility == Visibility.Visible ||
+        SwitchSuccessDialogOverlay.Visibility == Visibility.Visible;
 
     private void ShowSettingsError(string message)
     {
@@ -1549,6 +1603,11 @@ public partial class MainWindow : Window
         if (SettingsDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
         {
             CloseSettingsDialog_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (SwitchSuccessDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
+        {
+            CloseSwitchSuccessDialog();
             e.Handled = true;
         }
         else if (ChangedLoginDialogOverlay.Visibility == Visibility.Visible && !_isBusy)
@@ -1780,7 +1839,8 @@ public sealed class AccountCardViewModel : INotifyPropertyChanged
         var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (words.Length > 1)
         {
-            return string.Concat(words.Take(2).Select(word => word[0])).ToUpper(CultureInfo.InvariantCulture);
+            return string.Concat(words.Take(2).Select(word => StringInfo.GetNextTextElement(word)))
+                .ToUpper(CultureInfo.InvariantCulture);
         }
 
         var textElements = StringInfo.GetTextElementEnumerator(value);
