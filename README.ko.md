@@ -59,15 +59,14 @@
 ## 빠른 시작
 
 1. 평소와 같이 로그인하거나 사용할 API 사이트를 설정합니다.
-2. Codex, Claude Code, OpenCode 및 관련 확장 기능을 완전히 닫습니다.
-3. 앱을 열고 해당 공급자를 선택합니다.
-4. **현재 계정 저장**을 선택하고 <code>Personal</code> 같은 이름을 지정합니다.
-5. 두 번째 계정으로 로그인하거나 다른 API 사이트를 설정합니다.
-6. 관련 앱을 다시 닫고 <code>Work</code> 같은 이름으로 저장합니다.
-7. 전환할 때 저장된 프로필을 선택합니다.
+2. 앱을 열고 해당 공급자를 선택합니다.
+3. **현재 계정 저장**을 선택하고 <code>Personal</code> 같은 이름을 지정합니다.
+4. 두 번째 계정으로 로그인하거나 다른 API 사이트를 설정합니다.
+5. <code>Work</code> 같은 이름으로 저장합니다.
+6. 전환할 때는 관련 앱을 완전히 닫은 다음 저장된 프로필을 선택합니다.
 
-파일을 변경하기 전에 실행 중인 프로세스를 확인합니다. 무언가 열려 있으면 먼저
-닫도록 안내하며 파일을 변경하지 않습니다.
+계정을 저장할 때는 관련 앱을 닫지 않아도 됩니다. 전환 전에는 실행 중인 프로세스를
+확인합니다. 무언가 열려 있으면 먼저 닫도록 안내하며 파일을 변경하지 않습니다.
 
 저장한 뒤 현재 계정이 바뀌었다면 확인을 요청합니다. 실제로 다른 계정이라면 먼저
 새 프로필로 저장하십시오.
@@ -112,8 +111,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-<code>main</code>에 푸시할 때마다 GitHub Actions가 롤링
-<code>latest</code> 설치 프로그램과 포터블 앱을 다시 빌드합니다.
+<code>main</code>에 푸시할 때마다 GitHub Actions가 새 버전 Release를
+게시합니다. 설치 프로그램과 포터블 앱은 최신 Release에만 유지됩니다.
 
 ## 기여
 

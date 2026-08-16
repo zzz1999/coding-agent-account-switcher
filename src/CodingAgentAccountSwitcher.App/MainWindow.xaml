@@ -19,9 +19,11 @@
         FontFamily="{StaticResource Font.Family.Text}"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        RenderOptions.EdgeMode="Unspecified"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextHintingMode="Fixed"
-        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextRenderingMode="Grayscale"
         Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing"
@@ -42,7 +44,27 @@
             <Setter Property="StrokeStartLineCap" Value="Round" />
             <Setter Property="StrokeEndLineCap" Value="Round" />
             <Setter Property="StrokeLineJoin" Value="Round" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="SnapsToDevicePixels" Value="False" />
+            <Setter Property="RenderOptions.EdgeMode" Value="Unspecified" />
+        </Style>
+
+        <Style x:Key="Style.WindowRoundedSurface" TargetType="Border">
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="SnapsToDevicePixels" Value="False" />
+            <Setter Property="RenderOptions.EdgeMode" Value="Unspecified" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                             Value="Maximized">
+                    <Setter Property="CornerRadius" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Style.DialogOverlayBackdrop"
+               TargetType="Border"
+               BasedOn="{StaticResource Style.WindowRoundedSurface}">
+            <Setter Property="Background" Value="{DynamicResource Brush.Scrim}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
         <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
@@ -253,9 +275,9 @@
 
     <Grid>
         <Border x:Name="MainShell"
+                Style="{StaticResource Style.WindowRoundedSurface}"
                 Background="{DynamicResource Brush.Surface.Glass}"
-                BorderThickness="0"
-                CornerRadius="22">
+                BorderThickness="0">
             <Grid Margin="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="52" />
@@ -273,6 +295,7 @@
                         <Image Width="34"
                                Height="34"
                                SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="HighQuality"
                                Source="/Assets/CodingAgentAccountSwitcher.png"
                                Stretch="Uniform"
                                UseLayoutRounding="True" />
@@ -609,8 +632,9 @@
         <Grid x:Name="ProcessDialogOverlay"
               Panel.ZIndex="20"
               AutomationProperties.Name="{DynamicResource L.Process.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -679,8 +703,9 @@
         <Grid x:Name="SaveProfileDialogOverlay"
               Panel.ZIndex="21"
               AutomationProperties.Name="{DynamicResource L.Save.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -751,8 +776,9 @@
         <Grid x:Name="RenameProfileDialogOverlay"
               Panel.ZIndex="23"
               AutomationProperties.Name="{DynamicResource L.Rename.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -823,8 +849,9 @@
         <Grid x:Name="DeleteProfileDialogOverlay"
               Panel.ZIndex="23"
               AutomationProperties.Name="{DynamicResource L.Delete.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -896,8 +923,9 @@
         <Grid x:Name="SettingsDialogOverlay"
               Panel.ZIndex="24"
               AutomationProperties.Name="{DynamicResource L.Settings.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <ScrollViewer Padding="24"
                           HorizontalContentAlignment="Center"
                           VerticalContentAlignment="Center"
@@ -1019,8 +1047,9 @@
         <Grid x:Name="ChangedLoginDialogOverlay"
               Panel.ZIndex="22"
               AutomationProperties.Name="{DynamicResource L.Changed.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -1090,8 +1119,9 @@
         <Grid x:Name="SwitchSuccessDialogOverlay"
               Panel.ZIndex="25"
               AutomationProperties.Name="{DynamicResource L.SwitchSuccess.Automation}"
-              Background="{DynamicResource Brush.Scrim}"
+              Background="Transparent"
               Visibility="Collapsed">
+            <Border Style="{StaticResource Style.DialogOverlayBackdrop}" />
             <Border Style="{StaticResource Style.Dialog}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"

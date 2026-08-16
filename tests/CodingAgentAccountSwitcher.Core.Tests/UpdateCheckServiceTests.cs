@@ -49,7 +49,7 @@ public sealed class UpdateCheckServiceTests
     {
         using var wrongTagHandler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse(
             "0.1.42",
-            tagName: "v0.1.42"));
+            tagName: "v0.1.41"));
         using var wrongTagClient = new HttpClient(wrongTagHandler);
         var wrongTagService = new GitHubUpdateCheckService(wrongTagClient);
         await Assert.ThrowsAsync<InvalidDataException>(
@@ -57,12 +57,27 @@ public sealed class UpdateCheckServiceTests
 
         using var missingMarkerHandler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent(new { tag_name = "latest", body = "Automated Windows build." }),
+            Content = JsonContent(new { tag_name = "v0.1.42", body = "Automated Windows build." }),
         });
         using var missingMarkerClient = new HttpClient(missingMarkerHandler);
         var missingMarkerService = new GitHubUpdateCheckService(missingMarkerClient);
         await Assert.ThrowsAsync<InvalidDataException>(
             () => missingMarkerService.CheckAsync(new Version(0, 1, 41)));
+    }
+
+    [Fact]
+    public async Task CheckAsyncAcceptsLegacyLatestTagDuringVersionedReleaseMigration()
+    {
+        using var handler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse(
+            "0.1.42",
+            tagName: "latest"));
+        using var client = new HttpClient(handler);
+        var service = new GitHubUpdateCheckService(client);
+
+        var result = await service.CheckAsync(new Version(0, 1, 41));
+
+        Assert.Equal(UpdateAvailability.UpdateAvailable, result.Availability);
+        Assert.Equal(new Version(0, 1, 42, 0), result.LatestVersion);
     }
 
     [Fact]
@@ -104,12 +119,12 @@ public sealed class UpdateCheckServiceTests
             GitHubUpdateCheckService.FormatVersion(new Version(major, minor, build, revision)));
     }
 
-    private static HttpResponseMessage CreateReleaseResponse(string version, string tagName = "latest") =>
+    private static HttpResponseMessage CreateReleaseResponse(string version, string? tagName = null) =>
         new(HttpStatusCode.OK)
         {
             Content = JsonContent(new
             {
-                tag_name = tagName,
+                tag_name = tagName ?? $"v{version}",
                 body = $"<!-- coding-agent-account-switcher-version: {version} -->\nAutomated Windows build.",
             }),
         };

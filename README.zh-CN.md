@@ -56,14 +56,14 @@
 ## 快速开始
 
 1. 正常登录账号，或配置要使用的 API 站点。
-2. 完全关闭 Codex、Claude Code、OpenCode 和相关扩展。
-3. 打开本软件并选择对应的应用。
-4. 点击 **保存当前账号**，将其命名为 <code>Personal</code> 等名称。
-5. 登录第二个账号或配置另一个 API 站点。
-6. 再次关闭相关软件，并将其保存为 <code>Work</code> 等名称。
-7. 以后选择已保存的资料即可切换。
+2. 打开本软件并选择对应的应用。
+3. 点击 **保存当前账号**，将其命名为 <code>Personal</code> 等名称。
+4. 登录第二个账号或配置另一个 API 站点。
+5. 将其保存为 <code>Work</code> 等名称。
+6. 需要切换时，先完全关闭相关应用，再选择已保存的资料。
 
-切换前软件会检查相关进程。若仍有软件在运行，会先提示关闭，并且不会修改文件。
+保存账号时无需关闭相关应用。切换前软件会检查相关进程；若仍有应用在运行，会先
+提示关闭，并且不会修改文件。
 
 如果当前账号从上次保存后发生变化，软件会先要求确认。如果实际上已经登录了
 另一个账号，请先将其保存为新资料。
@@ -105,8 +105,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-每次推送到 <code>main</code> 后，GitHub Actions 都会重新构建滚动更新的
-<code>latest</code> 安装版和便携版。
+每次推送到 <code>main</code> 后，GitHub Actions 都会发布一个带版本号的新
+Release。只有最新 Release 保留安装版和便携版下载文件。
 
 ## 参与贡献
 

@@ -60,15 +60,15 @@ finden Sie in der [Architektur](docs/ARCHITECTURE.md).
 ## Schnellstart
 
 1. Melden Sie sich normal an oder richten Sie den gewünschten API-Dienst ein.
-2. Schließen Sie Codex, Claude Code, OpenCode und zugehörige Erweiterungen vollständig.
-3. Öffnen Sie die App und wählen Sie den passenden Anbieter.
-4. Wählen Sie **Aktuelles Konto speichern** und vergeben Sie einen Namen wie <code>Personal</code>.
-5. Melden Sie sich beim zweiten Konto an oder richten Sie einen anderen API-Dienst ein.
-6. Schließen Sie die Apps erneut und speichern Sie es beispielsweise als <code>Work</code>.
-7. Wählen Sie später ein gespeichertes Profil zum Wechseln aus.
+2. Öffnen Sie die App und wählen Sie den passenden Anbieter.
+3. Wählen Sie **Aktuelles Konto speichern** und vergeben Sie einen Namen wie <code>Personal</code>.
+4. Melden Sie sich beim zweiten Konto an oder richten Sie einen anderen API-Dienst ein.
+5. Speichern Sie es beispielsweise als <code>Work</code>.
+6. Schließen Sie vor jedem Wechsel die zugehörige App vollständig und wählen Sie dann ein gespeichertes Profil aus.
 
-Vor einer Änderung prüft die App laufende Prozesse. Ist noch etwas geöffnet,
-fordert sie zum Schließen auf und ändert keine Datei.
+Ein Konto kann gespeichert werden, während die zugehörige App geöffnet ist. Vor
+einem Wechsel prüft die App laufende Prozesse. Ist noch etwas geöffnet, fordert
+sie zum Schließen auf und ändert keine Datei.
 
 Hat sich das aktuelle Konto seit dem Speichern geändert, bittet die App um
 Bestätigung. Handelt es sich tatsächlich um ein anderes Konto, speichern Sie es
@@ -115,8 +115,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-Jeder Push auf <code>main</code> erstellt über GitHub Actions die fortlaufende
-<code>latest</code>-Installation und portable App neu.
+Jeder Push auf <code>main</code> veröffentlicht über GitHub Actions ein neues,
+versioniertes Release. Nur das neueste Release behält Installer und portable App.
 
 ## Mitwirken
 

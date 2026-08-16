@@ -217,26 +217,29 @@ public sealed class AccountSwitchService
             return new CaptureProfileResult { Status = AccountOperationStatus.LockUnavailable };
         }
 
-        var inspection = _processInspector.Inspect(adapter);
-        if (inspection.Status != ProcessInspectionStatus.Clear)
+        var inspection = ProcessInspectionResult.Clear;
+        try
         {
-            return new CaptureProfileResult
+            // Saving is read-only with respect to provider files, so it remains
+            // available while the provider is running. Never perform recovery
+            // writes as a side effect of a capture request.
+            if (_vault.GetPendingJournal(adapter.Provider) is not null)
             {
-                Status = inspection.Status == ProcessInspectionStatus.Running
-                    ? AccountOperationStatus.BlockedByRunningProcesses
-                    : AccountOperationStatus.ProcessInspectionUnknown,
-                ProcessInspection = inspection
-            };
+                return new CaptureProfileResult
+                {
+                    Status = AccountOperationStatus.RecoveryRequired,
+                    ProcessInspection = inspection,
+                    ErrorMessage = "Finish the pending account-switch recovery before saving another profile."
+                };
+            }
         }
-
-        var recovery = RecoverCore(adapter, inspection);
-        if (!RecoveryPermitsNewOperation(recovery.Status))
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             return new CaptureProfileResult
             {
-                Status = MapRecoveryStatus(recovery.Status),
-                ProcessInspection = recovery.ProcessInspection,
-                ErrorMessage = recovery.ErrorMessage
+                Status = AccountOperationStatus.RecoveryRequired,
+                ProcessInspection = inspection,
+                ErrorMessage = exception.Message
             };
         }
 
@@ -262,17 +265,6 @@ public sealed class AccountSwitchService
 
             currentCredential = adapter.ReadSnapshot();
             authenticationFileRead = true;
-            var finalInspection = _processInspector.Inspect(adapter);
-            if (finalInspection.Status != ProcessInspectionStatus.Clear)
-            {
-                return new CaptureProfileResult
-                {
-                    Status = finalInspection.Status == ProcessInspectionStatus.Running
-                        ? AccountOperationStatus.BlockedByRunningProcesses
-                        : AccountOperationStatus.ProcessInspectionUnknown,
-                    ProcessInspection = finalInspection
-                };
-            }
 
             if (profileToReplace.HasValue)
             {

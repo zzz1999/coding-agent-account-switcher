@@ -2,12 +2,15 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Shell;
 using CodingAgentAccountSwitcher.Core;
 
 namespace CodingAgentAccountSwitcher.App;
@@ -15,6 +18,9 @@ namespace CodingAgentAccountSwitcher.App;
 public partial class MainWindow : Window
 {
     private const string ProfilesHiddenNoticeKey = "Status.ProfilesHidden";
+    private const int DwmWindowCornerPreferenceAttribute = 33;
+    private const int DwmWindowBorderColorAttribute = 34;
+    private const uint DwmColorNone = 0xFFFFFFFE;
 
     private readonly LocalizationService _localization;
     private readonly ApplicationSettingsService _settingsService;
@@ -58,6 +64,7 @@ public partial class MainWindow : Window
             typeof(App).Assembly.GetName().Version ?? new Version(0, 1, 0));
 
         InitializeComponent();
+        ConfigureNativeWindowCorners();
         ApplyTheme(_settings.UseDarkTheme);
 
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -102,6 +109,66 @@ public partial class MainWindow : Window
         ApplyLanguageLayout();
         ApplyUpdateStatusText();
         ShowProvider(AgentProvider.Codex);
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ApplyNativeWindowAppearance();
+    }
+
+    private void ConfigureNativeWindowCorners()
+    {
+        var chrome = WindowChrome.GetWindowChrome(this);
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            // WindowChrome's custom region has visibly aliased edges. On
+            // Windows 11, let DWM perform the final GPU-composited clipping.
+            if (chrome is not null)
+            {
+                chrome.CornerRadius = default;
+            }
+
+            return;
+        }
+
+        // Windows 10 has no native DWM corner preference. A layered WPF window
+        // gives only the four outer corners per-pixel alpha, while the opaque
+        // MainShell keeps the rest of the interface rendered at native DPI.
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
+        if (chrome is not null)
+        {
+            chrome.CornerRadius = default;
+        }
+    }
+
+    private void ApplyNativeWindowAppearance()
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            return;
+        }
+
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var cornerPreference = DwmWindowCornerPreference.Round;
+        _ = DwmSetWindowAttribute(
+            handle,
+            DwmWindowCornerPreferenceAttribute,
+            ref cornerPreference,
+            Marshal.SizeOf<DwmWindowCornerPreference>());
+
+        var borderColor = DwmColorNone;
+        _ = DwmSetWindowAttribute(
+            handle,
+            DwmWindowBorderColorAttribute,
+            ref borderColor,
+            sizeof(uint));
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -719,7 +786,7 @@ public partial class MainWindow : Window
 
         SetBusy(true);
         SetStatus(
-            T("Status.CheckingSave", ProviderDisplayName(provider)),
+            T("Status.CheckingSave"),
             StatusTone.Ready);
 
         CaptureProfileResult result;
@@ -742,9 +809,7 @@ public partial class MainWindow : Window
         }
 
         SetBusy(false);
-        if (result.Status is not AccountOperationStatus.BlockedByRunningProcesses and
-            not AccountOperationStatus.ProcessInspectionUnknown and
-            not AccountOperationStatus.LockUnavailable and
+        if (result.Status is not AccountOperationStatus.LockUnavailable and
             not AccountOperationStatus.RecoveryRequired)
         {
             _providerNotices.Remove(provider);
@@ -768,11 +833,6 @@ public partial class MainWindow : Window
                             ProviderDisplayName(provider)),
                         StatusTone.Success);
                 }
-                break;
-            case AccountOperationStatus.BlockedByRunningProcesses:
-            case AccountOperationStatus.ProcessInspectionUnknown:
-                _pendingOperation = PendingAccountOperation.Capture(provider, displayName, profileToReplace);
-                ShowProcessDialog(result.ProcessInspection);
                 break;
             case AccountOperationStatus.AuthenticationFileMissing:
                 CloseProcessDialog();
@@ -953,21 +1013,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (pendingOperation.Kind == PendingOperationKind.Capture)
-        {
-            await AttemptCaptureAsync(
-                pendingOperation.Provider,
-                pendingOperation.DisplayName,
-                pendingOperation.ProfileId == Guid.Empty ? null : pendingOperation.ProfileId);
-        }
-        else
-        {
-            await AttemptSwitchAsync(
-                pendingOperation.Provider,
-                pendingOperation.ProfileId,
-                pendingOperation.DisplayName,
-                pendingOperation.ConfirmationFingerprint);
-        }
+        await AttemptSwitchAsync(
+            pendingOperation.Provider,
+            pendingOperation.ProfileId,
+            pendingOperation.DisplayName,
+            pendingOperation.ConfirmationFingerprint);
     }
 
     private void ShowChangedLoginDialog(Guid? sourceProfileId, bool isSavedSnapshotRestore)
@@ -1005,7 +1055,7 @@ public partial class MainWindow : Window
     private async void ConfirmChangedLoginSwitch_Click(object sender, RoutedEventArgs e)
     {
         var pendingOperation = _pendingOperation;
-        if (_isBusy || pendingOperation is null || pendingOperation.Kind != PendingOperationKind.Switch)
+        if (_isBusy || pendingOperation is null)
         {
             return;
         }
@@ -1721,32 +1771,38 @@ public partial class MainWindow : Window
         Failed,
     }
 
-    private enum PendingOperationKind
-    {
-        Capture,
-        Switch,
-    }
-
     private sealed record PendingAccountOperation(
-        PendingOperationKind Kind,
         AgentProvider Provider,
         Guid ProfileId,
         string DisplayName,
         string? ConfirmationFingerprint)
     {
-        public static PendingAccountOperation Capture(
-            AgentProvider provider,
-            string displayName,
-            Guid? profileToReplace) =>
-            new(PendingOperationKind.Capture, provider, profileToReplace ?? Guid.Empty, displayName, null);
-
         public static PendingAccountOperation Switch(
             AgentProvider provider,
             Guid profileId,
             string displayName,
             string? confirmationFingerprint = null) =>
-            new(PendingOperationKind.Switch, provider, profileId, displayName, confirmationFingerprint);
+            new(provider, profileId, displayName, confirmationFingerprint);
     }
+
+    private enum DwmWindowCornerPreference
+    {
+        Round = 2,
+    }
+
+    [DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref DwmWindowCornerPreference value,
+        int valueSize);
+
+    [DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref uint value,
+        int valueSize);
 
     private sealed record ProviderContext(
         IAuthenticationAdapter Adapter,

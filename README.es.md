@@ -60,15 +60,15 @@ Solo se cambian los campos de cuenta compatibles con el proyecto. Consulte la
 ## Inicio rápido
 
 1. Inicie sesión normalmente o configure el sitio API que quiera usar.
-2. Cierre por completo Codex, Claude Code, OpenCode y sus extensiones.
-3. Abra la aplicación y elija el proveedor correspondiente.
-4. Pulse **Guardar cuenta actual** y asígnele un nombre, por ejemplo <code>Personal</code>.
-5. Inicie sesión con la segunda cuenta o configure otro sitio API.
-6. Cierre de nuevo las aplicaciones y guárdela como <code>Work</code>, por ejemplo.
-7. Seleccione un perfil guardado cuando quiera cambiar.
+2. Abra la aplicación y elija el proveedor correspondiente.
+3. Pulse **Guardar cuenta actual** y asígnele un nombre, por ejemplo <code>Personal</code>.
+4. Inicie sesión con la segunda cuenta o configure otro sitio API.
+5. Guárdela como <code>Work</code>, por ejemplo.
+6. Antes de cambiar, cierre por completo la aplicación relacionada y seleccione un perfil guardado.
 
-Antes de modificar archivos, la aplicación busca procesos en ejecución. Si algo
-sigue abierto, pide que lo cierre y no realiza ningún cambio.
+Puede guardar una cuenta mientras su aplicación está abierta. Antes de cambiar,
+la aplicación busca procesos en ejecución. Si algo sigue abierto, pide que lo
+cierre y no realiza ningún cambio.
 
 Si la cuenta actual cambió desde la última vez que se guardó, la aplicación pide
 confirmación. Si realmente es otra cuenta, guárdela primero como un perfil nuevo.
@@ -115,8 +115,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-Cada envío a <code>main</code> vuelve a compilar el instalador y la aplicación
-portátil de la versión continua <code>latest</code> mediante GitHub Actions.
+Cada envío a <code>main</code> publica una nueva versión numerada mediante GitHub
+Actions. Solo la versión más reciente conserva el instalador y la aplicación portátil.
 
 ## Contribuir
 

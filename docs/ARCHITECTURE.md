@@ -9,7 +9,9 @@ core and a WPF presentation layer.
   canonical account-and-API snapshot, selectively merges managed configuration
   fields, and declares the process names that make switching unsafe.
 - **Process guard**: returns `Clear`, `Running`, or `Unknown`. Only `Clear`
-  permits a credential operation. It never terminates a process.
+  permits switching or transaction recovery. Saving is a provider-file read
+  plus an encrypted vault write and deliberately does not inspect or terminate
+  provider processes.
 - **Profile vault**: stores non-secret metadata plus a DPAPI-encrypted composite
   snapshot below the current user's local application data directory. The
   snapshot contains opaque authentication bytes and only the provider-specific
@@ -35,7 +37,10 @@ core and a WPF presentation layer.
   DPAPI-encrypted blob before its journal, even when it matches the saved
   source. This supports exact partial-write rollback and legacy-source upgrade.
 - **WPF application**: presents provider tabs, account cards, capture and switch
-  actions, process-blocking dialogs, and status messages.
+  actions, process-blocking dialogs, and status messages. The executable is
+  Per-Monitor V2 DPI aware; Windows 11 uses native DWM outer corners, while the
+  Windows 10 fallback keeps an opaque shell inside a per-pixel-alpha window so
+  only the antialiased corner pixels are transparent.
 - **Localization catalog**: supplies every fixed interface string for the
   supported cultures and can refresh the active window without restarting the
   application. Arabic also switches the application shell to right-to-left
@@ -49,8 +54,9 @@ core and a WPF presentation layer.
   writes a machine-wide startup entry and does not require elevation.
 - **Update discovery**: after an explicit user click, sends one anonymous HTTPS
   `GET` to the official GitHub Release API and compares the machine-readable
-  version marker in the rolling Release notes. It has no startup, background,
-  or periodic scheduler and does not download or execute Release assets.
+  version marker in the latest versioned Release notes. It has no startup,
+  background, or periodic scheduler and does not download or execute Release
+  assets.
 - **Windows installer**: installs the self-contained x64 application below the
   current user's local application data, adds a Start Menu shortcut and an
   HKCU uninstall entry, and never requests elevation. Installation does not
@@ -63,7 +69,9 @@ core and a WPF presentation layer.
 2. Only the explicit provider whitelist is captured and merged. Every unrelated
    configuration value remains semantically unchanged. Byte-for-byte formatting
    and comment preservation are not invariants when a file is reserialized.
-3. A detected or unknown process state causes zero credential writes.
+3. A detected or unknown process state blocks switching and recovery and causes
+   zero live provider-file writes. Saving never writes provider files and does
+   not inspect provider process state.
 4. A target snapshot is decrypted and validated before the active snapshot is
    changed.
 5. Temporary plaintext staging and backup files exist only beside their live
@@ -121,10 +129,11 @@ core and a WPF presentation layer.
 21. Update discovery performs one anonymous request only after an explicit user
     action. It never runs at startup or in the background and never downloads or
     executes an installer or portable asset automatically.
-22. The rolling workflow uses one `APP_VERSION` value for the executable and
-    Release notes. The notes contain exactly one marker in the format
-    `<!-- coding-agent-account-switcher-version: 0.1.N -->`; the rolling
-    `latest` tag itself is not treated as a semantic version.
+22. The versioned workflow uses one `APP_VERSION` value for the executable,
+    `v0.1.N` tag, and Release notes. The notes contain exactly one marker in the
+    format `<!-- coding-agent-account-switcher-version: 0.1.N -->`. A new
+    Release is published for each successful push build; afterward, uploaded
+    assets are removed from older Releases while their records and tags remain.
 
 ## Provider contracts
 

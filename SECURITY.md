@@ -15,7 +15,7 @@ property. Remove all real account data before attaching diagnostics.
 
 ## Supported scope
 
-Security fixes target the current `main` branch and the newest rolling release.
+Security fixes target the current `main` branch and the newest versioned Release.
 This project does not claim to protect secrets from malware running under the
 same Windows user. Its vault is intended to prevent accidental plaintext
 storage and cross-user access, not to replace endpoint security.
@@ -30,8 +30,10 @@ storage and cross-user access, not to replace endpoint security.
   credential data in byte buffers and clear buffers after use when practical.
 - Encrypt saved snapshots with Windows DPAPI `CurrentUser` scope.
 - Never place plaintext backup files in the vault or repository.
-- Block capture and switching when a related process is running or process
-  state cannot be checked reliably.
+- Saving a profile is read-only with respect to live provider files and may run
+  while the related provider is open. It must not trigger transaction recovery
+  or write provider files as a side effect. Block switching and recovery when a
+  related process is running or process state cannot be checked reliably.
 - Merge only the managed provider fields. Preserve every unrelated value and
   never replace a whole provider configuration with a profile template.
 - Preservation is semantic, not byte-for-byte: a parser may normalize JSON or
@@ -96,10 +98,14 @@ storage and cross-user access, not to replace endpoint security.
 - Update discovery compares release metadata only. The application never
   automatically downloads or executes an installer, portable executable, or
   any other Release asset.
-- The rolling Release workflow must use one `APP_VERSION` value for the built
-  executable and publish the exact machine-readable Release-note marker
+- The versioned Release workflow must use one `APP_VERSION` value for the built
+  executable, the `v0.1.N` tag, and the exact machine-readable Release-note marker
   `<!-- coding-agent-account-switcher-version: 0.1.N -->`. Treat this marker as
-  an external update-discovery contract.
+  an external update-discovery contract. Update discovery also accepts the
+  legacy `latest` tag while installations migrate to versioned Releases.
+- Publish and verify the new Release assets before deleting uploaded assets from
+  older Releases. Historical Release records and version tags remain available,
+  but only the newest Release keeps downloadable binaries.
 
 ## Managed provider fields
 

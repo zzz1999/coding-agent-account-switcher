@@ -62,15 +62,15 @@ Only account-related fields supported by this project are switched. See
 ## Quick start
 
 1. Sign in normally, or configure the API site you want to use.
-2. Fully close Codex, Claude Code, OpenCode, and related extensions.
-3. Open Coding Agent Account Switcher and choose the matching app.
-4. Select **Save current account** and give it a name such as <code>Personal</code>.
-5. Sign in to your second account or configure another API site.
-6. Close the related apps again and save it under another name such as <code>Work</code>.
-7. Select a saved profile whenever you want to switch.
+2. Open Coding Agent Account Switcher and choose the matching app.
+3. Select **Save current account** and give it a name such as <code>Personal</code>.
+4. Sign in to your second account or configure another API site.
+5. Save it under another name such as <code>Work</code>.
+6. Fully close the related app, then select a saved profile whenever you want to switch.
 
-The app checks for running processes before changing files. If something is
-still open, it asks you to close it first and makes no change.
+You can save an account while its app is open. Before switching, the app checks
+for running processes. If something is still open, it asks you to close it first
+and makes no change.
 
 If the current account has changed since it was saved, the app asks for
 confirmation before replacing anything. If it is actually a different account,
@@ -122,8 +122,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-Every push to <code>main</code> rebuilds the rolling <code>latest</code>
-installer and portable executable through GitHub Actions.
+Every push to <code>main</code> publishes a new versioned Release through GitHub
+Actions. Only the newest Release keeps the installer and portable downloads.
 
 ## Contributing
 

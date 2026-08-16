@@ -1,4 +1,4 @@
-name: Build rolling latest release
+name: Build versioned release
 
 on:
   push:
@@ -10,7 +10,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: rolling-latest-release
+  # Serialize releases so two closely spaced pushes cannot publish out of order.
+  group: versioned-release-main
   cancel-in-progress: false
 
 jobs:
@@ -261,7 +262,7 @@ jobs:
             }
           }
 
-      - name: Replace rolling latest release
+      - name: Publish versioned release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -270,53 +271,68 @@ jobs:
           PORTABLE_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe
           PORTABLE_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe.sha256
         run: |
-          # Do not probe expected absence through a failing API request. Newer
-          # PowerShell runners may promote native stderr to a terminating error.
-          $releaseListJson = gh release list --limit 100 --json tagName
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Failed to list existing releases.'
-          }
-
-          $hasLatestRelease = @(
-            $releaseListJson |
-              ConvertFrom-Json |
-              Where-Object { $_.tagName -eq 'latest' }
-          ).Count -gt 0
-
-          if ($hasLatestRelease) {
-            gh release delete latest --cleanup-tag --yes
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Failed to delete the previous latest release.'
-            }
-          }
-          else {
-            $latestTagReference = git ls-remote --tags origin refs/tags/latest
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Failed to check for an orphan latest tag.'
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace(($latestTagReference -join "`n"))) {
-              gh api `
-                --method DELETE `
-                "repos/$env:GITHUB_REPOSITORY/git/refs/tags/latest"
-              if ($LASTEXITCODE -ne 0) {
-                throw 'Failed to delete the orphan latest tag.'
-              }
-            }
-          }
-
+          $releaseTag = "v$env:APP_VERSION"
           $versionMarker = "<!-- coding-agent-account-switcher-version: $env:APP_VERSION -->"
-          $releaseNotes = "Automated build version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer and a portable executable.`n`n$versionMarker"
+          $releaseNotes = "Automated Windows build for version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer, a portable executable, and SHA-256 checksums.`n`n$versionMarker"
 
-          gh release create latest `
+          gh release create "$releaseTag" `
             "$env:INSTALLER_PATH" `
             "$env:INSTALLER_CHECKSUM_PATH" `
             "$env:PORTABLE_PATH" `
             "$env:PORTABLE_CHECKSUM_PATH" `
             --target "$env:GITHUB_SHA" `
-            --title 'Latest Windows build' `
+            --title "$releaseTag" `
             --notes "$releaseNotes" `
             --latest
           if ($LASTEXITCODE -ne 0) {
-            throw 'Failed to create the latest release.'
+            throw "Failed to create release '$releaseTag'."
+          }
+
+      - name: Remove assets from older releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Keep the versioned Release records and tags, but remove every uploaded
+          # binary from older Releases after the new download is safely available.
+          $releaseTag = "v$env:APP_VERSION"
+          $apiVersionHeader = 'X-GitHub-Api-Version: 2026-03-10'
+          $releasePagesJson = gh api `
+            --paginate `
+            --slurp `
+            --header "$apiVersionHeader" `
+            "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to list Releases for old-asset cleanup.'
+          }
+
+          $releasePages = @(($releasePagesJson -join "`n") | ConvertFrom-Json)
+          foreach ($releasePage in $releasePages) {
+            foreach ($release in @($releasePage)) {
+              if ($release.tag_name -ceq $releaseTag) {
+                continue
+              }
+
+              $assetPagesJson = gh api `
+                --paginate `
+                --slurp `
+                --header "$apiVersionHeader" `
+                "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?per_page=100"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to list assets for Release '$($release.tag_name)'."
+              }
+
+              $assetPages = @(($assetPagesJson -join "`n") | ConvertFrom-Json)
+              foreach ($assetPage in $assetPages) {
+                foreach ($asset in @($assetPage)) {
+                  gh api `
+                    --method DELETE `
+                    --header "$apiVersionHeader" `
+                    "repos/$env:GITHUB_REPOSITORY/releases/assets/$($asset.id)"
+                  if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to delete asset '$($asset.name)' from Release '$($release.tag_name)'."
+                  }
+                }
+              }
+            }
           }

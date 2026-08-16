@@ -60,15 +60,15 @@ Seuls les champs de compte pris en charge par le projet sont modifiés. Consulte
 ## Démarrage rapide
 
 1. Connectez-vous normalement ou configurez le site API souhaité.
-2. Fermez complètement Codex, Claude Code, OpenCode et leurs extensions.
-3. Ouvrez l’application et choisissez le fournisseur correspondant.
-4. Sélectionnez **Enregistrer le compte actuel** et nommez-le, par exemple <code>Personal</code>.
-5. Connectez-vous au second compte ou configurez un autre site API.
-6. Fermez de nouveau les applications et enregistrez-le, par exemple sous <code>Work</code>.
-7. Sélectionnez ensuite un profil enregistré pour changer de compte.
+2. Ouvrez l’application et choisissez le fournisseur correspondant.
+3. Sélectionnez **Enregistrer le compte actuel** et nommez-le, par exemple <code>Personal</code>.
+4. Connectez-vous au second compte ou configurez un autre site API.
+5. Enregistrez-le, par exemple sous <code>Work</code>.
+6. Avant de changer de compte, fermez complètement l’application concernée, puis sélectionnez un profil enregistré.
 
-Avant toute modification, l’application recherche les processus encore actifs.
-Si quelque chose est ouvert, elle vous demande de le fermer et ne change rien.
+Vous pouvez enregistrer un compte pendant que son application est ouverte. Avant
+un changement, l’application recherche les processus encore actifs. Si quelque
+chose est ouvert, elle vous demande de le fermer et ne change rien.
 
 Si le compte actuel a changé depuis son enregistrement, une confirmation est
 demandée. S’il s’agit réellement d’un autre compte, enregistrez-le d’abord comme
@@ -116,8 +116,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-Chaque envoi vers <code>main</code> reconstruit automatiquement l’installateur et
-l’application portable de la release glissante <code>latest</code> avec GitHub Actions.
+Chaque envoi vers <code>main</code> publie une nouvelle release versionnée avec GitHub
+Actions. Seule la release la plus récente conserve l’installateur et l’application portable.
 
 ## Contribution
 

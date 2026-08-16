@@ -57,35 +57,23 @@ public sealed class AccountSwitchServiceTests
         Assert.Empty(Directory.GetFiles(vault.RootDirectory, "recovery-*.vault", SearchOption.AllDirectories));
     }
 
-    [Theory]
-    [InlineData(ProcessInspectionStatus.Running, AccountOperationStatus.BlockedByRunningProcesses)]
-    [InlineData(ProcessInspectionStatus.Unknown, AccountOperationStatus.ProcessInspectionUnknown)]
-    public async Task ProcessGuardBlocksCaptureWithoutWritingAnything(
-        ProcessInspectionStatus inspectionStatus,
-        AccountOperationStatus expectedStatus)
+    [Fact]
+    public async Task CaptureDoesNotInspectProviderProcessState()
     {
         using var temporary = new TemporaryDirectory();
         var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
         byte[] original = [1, 2, 3];
         File.WriteAllBytes(authenticationPath, original);
         var vaultPath = System.IO.Path.Combine(temporary.Path, "vault");
-        var inspection = new ProcessInspectionResult
-        {
-            Status = inspectionStatus,
-            Processes = inspectionStatus == ProcessInspectionStatus.Running
-                ? [new DetectedProcess(42, "codex")]
-                : [],
-            Issues = inspectionStatus == ProcessInspectionStatus.Unknown
-                ? [new ProcessInspectionIssue("codex", "Access denied")]
-                : []
-        };
-        var service = CreateService(new AuthenticationProfileVault(vaultPath), inspection);
+        var vault = new AuthenticationProfileVault(vaultPath);
+        var service = CreateService(vault, new FailOnUseProcessInspector());
 
         var result = await service.CaptureCurrentLoginAsync(adapter, "Personal");
 
-        Assert.Equal(expectedStatus, result.Status);
+        Assert.Equal(AccountOperationStatus.Success, result.Status);
         Assert.Equal(original, File.ReadAllBytes(authenticationPath));
-        Assert.False(Directory.Exists(vaultPath));
+        Assert.Equal(ProcessInspectionResult.Clear, result.ProcessInspection);
+        Assert.Equal(original, vault.LoadCredential(AgentProvider.Codex, result.Profile!.ProfileId));
     }
 
     [Theory]
@@ -671,8 +659,8 @@ public sealed class AccountSwitchServiceTests
     }
 
     [Theory]
-    [InlineData(true, ProcessInspectionStatus.Running, AccountOperationStatus.BlockedByRunningProcesses)]
-    [InlineData(true, ProcessInspectionStatus.Unknown, AccountOperationStatus.ProcessInspectionUnknown)]
+    [InlineData(true, ProcessInspectionStatus.Running, AccountOperationStatus.RecoveryRequired)]
+    [InlineData(true, ProcessInspectionStatus.Unknown, AccountOperationStatus.RecoveryRequired)]
     [InlineData(false, ProcessInspectionStatus.Running, AccountOperationStatus.BlockedByRunningProcesses)]
     [InlineData(false, ProcessInspectionStatus.Unknown, AccountOperationStatus.ProcessInspectionUnknown)]
     public async Task IncompleteRecoveryBlocksEveryNewOperationWhenSecondProcessCheckIsUnsafe(
@@ -713,7 +701,9 @@ public sealed class AccountSwitchServiceTests
         };
         var service = CreateService(
             vault,
-            new SequencedProcessInspector(ProcessInspectionResult.Clear, unsafeInspection));
+            captureOperation
+                ? new FixedProcessInspector(unsafeInspection)
+                : new SequencedProcessInspector(ProcessInspectionResult.Clear, unsafeInspection));
 
         var actualStatus = captureOperation
             ? (await service.CaptureCurrentLoginAsync(adapter, "Unexpected")).Status
@@ -898,6 +888,12 @@ public sealed class AccountSwitchServiceTests
 
             return _lastResult;
         }
+    }
+
+    private sealed class FailOnUseProcessInspector : IProcessInspector
+    {
+        public ProcessInspectionResult Inspect(IAuthenticationAdapter adapter) =>
+            throw new InvalidOperationException("Capture must not inspect provider processes.");
     }
 
     private sealed class FailOnceActiveStateWriter : IAtomicFileWriter

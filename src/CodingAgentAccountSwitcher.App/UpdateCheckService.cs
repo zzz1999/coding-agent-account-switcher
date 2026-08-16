@@ -33,7 +33,7 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         "https://api.github.com/repos/zzz1999/coding-agent-account-switcher/releases/latest",
         UriKind.Absolute);
     internal static readonly Uri LatestReleasePageUri = new(
-        "https://github.com/zzz1999/coding-agent-account-switcher/releases/tag/latest",
+        "https://github.com/zzz1999/coding-agent-account-switcher/releases/latest",
         UriKind.Absolute);
 
     private readonly HttpClient _httpClient;
@@ -78,7 +78,7 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("tag_name", out var tagElement) ||
-            !string.Equals(tagElement.GetString(), "latest", StringComparison.Ordinal) ||
+            tagElement.ValueKind != JsonValueKind.String ||
             !root.TryGetProperty("body", out var bodyElement) ||
             bodyElement.ValueKind != JsonValueKind.String)
         {
@@ -86,6 +86,14 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         }
 
         var latestVersion = ParseReleaseVersion(bodyElement.GetString()!);
+        var expectedTagName = $"v{FormatVersion(latestVersion)}";
+        var tagName = tagElement.GetString();
+        if (!string.Equals(tagName, expectedTagName, StringComparison.Ordinal) &&
+            !string.Equals(tagName, "latest", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The GitHub release tag does not match its version marker.");
+        }
+
         return new UpdateCheckResult(
             normalizedCurrentVersion,
             latestVersion,

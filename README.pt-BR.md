@@ -59,15 +59,15 @@ Somente os campos de conta compatíveis com o projeto são alterados. Consulte a
 ## Início rápido
 
 1. Entre normalmente ou configure o site de API desejado.
-2. Feche completamente Codex, Claude Code, OpenCode e extensões relacionadas.
-3. Abra o aplicativo e escolha o provedor correspondente.
-4. Selecione **Salvar conta atual** e use um nome como <code>Personal</code>.
-5. Entre na segunda conta ou configure outro site de API.
-6. Feche os aplicativos novamente e salve como <code>Work</code>, por exemplo.
-7. Escolha um perfil salvo sempre que quiser trocar.
+2. Abra o aplicativo e escolha o provedor correspondente.
+3. Selecione **Salvar conta atual** e use um nome como <code>Personal</code>.
+4. Entre na segunda conta ou configure outro site de API.
+5. Salve como <code>Work</code>, por exemplo.
+6. Antes de trocar, feche completamente o aplicativo relacionado e escolha um perfil salvo.
 
-Antes de alterar arquivos, o aplicativo verifica processos em execução. Se algo
-estiver aberto, ele pede para fechar e não faz nenhuma alteração.
+Você pode salvar uma conta enquanto o aplicativo relacionado está aberto. Antes
+de trocar, o aplicativo verifica processos em execução. Se algo estiver aberto,
+ele pede para fechar e não faz nenhuma alteração.
 
 Se a conta atual mudou desde que foi salva, o aplicativo pede confirmação. Se for
 realmente outra conta, salve-a primeiro como um novo perfil.
@@ -113,8 +113,8 @@ dotnet test CodingAgentAccountSwitcher.sln --configuration Release
 dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwitcher.App.csproj
 ~~~
 
-Cada push para <code>main</code> faz o GitHub Actions reconstruir o instalador e
-o aplicativo portátil da release contínua <code>latest</code>.
+Cada push para <code>main</code> publica uma nova release versionada pelo GitHub
+Actions. Somente a release mais recente mantém o instalador e o aplicativo portátil.
 
 ## Contribuição
 

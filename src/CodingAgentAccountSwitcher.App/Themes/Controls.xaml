@@ -87,7 +87,9 @@
         <Setter Property="FontFamily" Value="{StaticResource Font.Family.Text}" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
-        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <!-- Grayscale antialiasing avoids ClearType color fringes when the app
+             is captured, remotely displayed, or viewed at fractional DPI. -->
+        <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale" />
     </Style>
 
     <Style x:Key="Style.Text.Display" TargetType="TextBlock">
