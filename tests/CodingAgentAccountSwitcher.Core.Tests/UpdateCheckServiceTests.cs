@@ -10,27 +10,40 @@ public sealed class UpdateCheckServiceTests
     [Fact]
     public async Task CheckAsyncReportsNewerReleaseAndSendsRequiredGitHubHeaders()
     {
-        using var handler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse("0.1.42"));
+        using var handler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse("1.0.42"));
         using var client = new HttpClient(handler);
         var service = new GitHubUpdateCheckService(client);
 
-        var result = await service.CheckAsync(new Version(0, 1, 41));
+        var result = await service.CheckAsync(new Version(1, 0, 41));
 
         Assert.Equal(UpdateAvailability.UpdateAvailable, result.Availability);
-        Assert.Equal(new Version(0, 1, 41, 0), result.CurrentVersion);
-        Assert.Equal(new Version(0, 1, 42, 0), result.LatestVersion);
+        Assert.Equal(new Version(1, 0, 41, 0), result.CurrentVersion);
+        Assert.Equal(new Version(1, 0, 42, 0), result.LatestVersion);
         Assert.Equal(GitHubUpdateCheckService.LatestReleasePageUri, result.ReleasePage);
         Assert.Equal(HttpMethod.Get, handler.Method);
         Assert.Equal(GitHubUpdateCheckService.LatestReleaseApiUri, handler.RequestUri);
         Assert.Contains("application/vnd.github+json", handler.Accept, StringComparison.Ordinal);
-        Assert.Equal("CodingAgentAccountSwitcher/0.1.41", handler.UserAgent);
+        Assert.Equal("CodingAgentAccountSwitcher/1.0.41", handler.UserAgent);
         Assert.Equal("2026-03-10", handler.ApiVersion);
         Assert.Null(handler.Authorization);
     }
 
+    [Fact]
+    public async Task CheckAsyncReportsFirstStableReleaseAsNewerThanPreviewSeries()
+    {
+        using var handler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse("1.0.11"));
+        using var client = new HttpClient(handler);
+        var service = new GitHubUpdateCheckService(client);
+
+        var result = await service.CheckAsync(new Version(0, 1, 10));
+
+        Assert.Equal(UpdateAvailability.UpdateAvailable, result.Availability);
+        Assert.Equal(new Version(1, 0, 11, 0), result.LatestVersion);
+    }
+
     [Theory]
-    [InlineData("0.1.42", 42)]
-    [InlineData("0.1.41", 42)]
+    [InlineData("1.0.42", 42)]
+    [InlineData("1.0.41", 42)]
     public async Task CheckAsyncReportsUpToDateWhenReleaseIsNotNewer(
         string releaseVersion,
         int currentBuild)
@@ -39,45 +52,73 @@ public sealed class UpdateCheckServiceTests
         using var client = new HttpClient(handler);
         var service = new GitHubUpdateCheckService(client);
 
-        var result = await service.CheckAsync(new Version(0, 1, currentBuild, 0));
+        var result = await service.CheckAsync(new Version(1, 0, currentBuild, 0));
 
         Assert.Equal(UpdateAvailability.UpToDate, result.Availability);
     }
 
     [Fact]
-    public async Task CheckAsyncRejectsUnexpectedTagOrMissingVersionMarker()
+    public async Task CheckAsyncRejectsMismatchedVersionTagAndMarker()
     {
         using var wrongTagHandler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse(
-            "0.1.42",
-            tagName: "v0.1.41"));
+            "1.0.42",
+            tagName: "v1.0.41"));
         using var wrongTagClient = new HttpClient(wrongTagHandler);
         var wrongTagService = new GitHubUpdateCheckService(wrongTagClient);
         await Assert.ThrowsAsync<InvalidDataException>(
-            () => wrongTagService.CheckAsync(new Version(0, 1, 41)));
+            () => wrongTagService.CheckAsync(new Version(1, 0, 41)));
+    }
 
-        using var missingMarkerHandler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CheckAsyncAcceptsVersionedTagWhenReleaseNotesAreUnavailable(
+        bool includeBody,
+        bool useNullBody)
+    {
+        using var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent(new { tag_name = "v0.1.42", body = "Automated Windows build." }),
+            Content = includeBody
+                ? JsonContent(new { tag_name = "v1.0.42", body = useNullBody ? null : "Automated Windows build." })
+                : JsonContent(new { tag_name = "v1.0.42" }),
         });
-        using var missingMarkerClient = new HttpClient(missingMarkerHandler);
-        var missingMarkerService = new GitHubUpdateCheckService(missingMarkerClient);
-        await Assert.ThrowsAsync<InvalidDataException>(
-            () => missingMarkerService.CheckAsync(new Version(0, 1, 41)));
+        using var client = new HttpClient(handler);
+        var service = new GitHubUpdateCheckService(client);
+
+        var result = await service.CheckAsync(new Version(1, 0, 41));
+
+        Assert.Equal(UpdateAvailability.UpdateAvailable, result.Availability);
+        Assert.Equal(new Version(1, 0, 42, 0), result.LatestVersion);
     }
 
     [Fact]
     public async Task CheckAsyncAcceptsLegacyLatestTagDuringVersionedReleaseMigration()
     {
         using var handler = new RecordingHttpMessageHandler(_ => CreateReleaseResponse(
-            "0.1.42",
+            "1.0.42",
             tagName: "latest"));
         using var client = new HttpClient(handler);
         var service = new GitHubUpdateCheckService(client);
 
-        var result = await service.CheckAsync(new Version(0, 1, 41));
+        var result = await service.CheckAsync(new Version(1, 0, 41));
 
         Assert.Equal(UpdateAvailability.UpdateAvailable, result.Availability);
-        Assert.Equal(new Version(0, 1, 42, 0), result.LatestVersion);
+        Assert.Equal(new Version(1, 0, 42, 0), result.LatestVersion);
+    }
+
+    [Fact]
+    public async Task CheckAsyncRequiresVersionMarkerForLegacyLatestTag()
+    {
+        using var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent(new { tag_name = "latest", body = "Automated Windows build." }),
+        });
+        using var client = new HttpClient(handler);
+        var service = new GitHubUpdateCheckService(client);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => service.CheckAsync(new Version(1, 0, 41)));
     }
 
     [Fact]
@@ -91,7 +132,7 @@ public sealed class UpdateCheckServiceTests
         var service = new GitHubUpdateCheckService(client);
 
         await Assert.ThrowsAsync<InvalidDataException>(
-            () => service.CheckAsync(new Version(0, 1, 41)));
+            () => service.CheckAsync(new Version(1, 0, 41)));
     }
 
     [Fact]
@@ -100,12 +141,23 @@ public sealed class UpdateCheckServiceTests
         Assert.Throws<InvalidDataException>(() => GitHubUpdateCheckService.ParseReleaseVersion(
             "<!-- coding-agent-account-switcher-version: not-a-version -->"));
         Assert.Throws<InvalidDataException>(() => GitHubUpdateCheckService.ParseReleaseVersion(
-            "<!-- coding-agent-account-switcher-version: 0.1.41 -->\n" +
-            "<!-- coding-agent-account-switcher-version: 0.1.42 -->"));
+            "<!-- coding-agent-account-switcher-version: 1.0.41 -->\n" +
+            "<!-- coding-agent-account-switcher-version: 1.0.42 -->"));
     }
 
     [Theory]
-    [InlineData(0, 1, 42, 0, "0.1.42")]
+    [InlineData("latest")]
+    [InlineData("1.0.42")]
+    [InlineData("v1.0")]
+    [InlineData("v1.0.42.0")]
+    [InlineData("v1.0.42-beta")]
+    public void ParseVersionedTagRejectsUnsupportedOrNoncanonicalTags(string tagName)
+    {
+        Assert.Throws<InvalidDataException>(() => GitHubUpdateCheckService.ParseVersionedTag(tagName));
+    }
+
+    [Theory]
+    [InlineData(1, 0, 42, 0, "1.0.42")]
     [InlineData(1, 2, 3, 4, "1.2.3.4")]
     public void FormatVersionUsesThreeComponentsUnlessRevisionIsNonzero(
         int major,

@@ -53,10 +53,10 @@ core and a WPF presentation layer.
   user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. It never
   writes a machine-wide startup entry and does not require elevation.
 - **Update discovery**: after an explicit user click, sends one anonymous HTTPS
-  `GET` to the official GitHub Release API and compares the machine-readable
-  version marker in the latest versioned Release notes. It has no startup,
-  background, or periodic scheduler and does not download or execute Release
-  assets.
+  `GET` to the official GitHub Release API and compares the latest immutable
+  version tag. When Release notes contain the machine-readable version marker,
+  the service verifies that it matches the tag. It has no startup, background,
+  or periodic scheduler and does not download or execute Release assets.
 - **Windows installer**: installs the self-contained x64 application below the
   current user's local application data, adds a Start Menu shortcut and an
   HKCU uninstall entry, and never requests elevation. Installation does not
@@ -130,8 +130,8 @@ core and a WPF presentation layer.
     action. It never runs at startup or in the background and never downloads or
     executes an installer or portable asset automatically.
 22. The versioned workflow uses one `APP_VERSION` value for the executable,
-    `v0.1.N` tag, and Release notes. The notes contain exactly one marker in the
-    format `<!-- coding-agent-account-switcher-version: 0.1.N -->`. A new
+    `v1.0.N` tag, and Release notes. The notes contain exactly one marker in the
+    format `<!-- coding-agent-account-switcher-version: 1.0.N -->`. A new
     Release is published for each successful push build; afterward, uploaded
     assets are removed from older Releases while their records and tags remain.
 

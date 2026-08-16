@@ -61,7 +61,7 @@ public partial class MainWindow : Window
         _startupRegistration = startupRegistration;
         _settings = settings;
         _applicationVersion = GitHubUpdateCheckService.NormalizeVersion(
-            typeof(App).Assembly.GetName().Version ?? new Version(0, 1, 0));
+            typeof(App).Assembly.GetName().Version ?? new Version(1, 0, 0));
 
         InitializeComponent();
         ConfigureNativeWindowCorners();

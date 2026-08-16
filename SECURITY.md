@@ -99,10 +99,11 @@ storage and cross-user access, not to replace endpoint security.
   automatically downloads or executes an installer, portable executable, or
   any other Release asset.
 - The versioned Release workflow must use one `APP_VERSION` value for the built
-  executable, the `v0.1.N` tag, and the exact machine-readable Release-note marker
-  `<!-- coding-agent-account-switcher-version: 0.1.N -->`. Treat this marker as
-  an external update-discovery contract. Update discovery also accepts the
-  legacy `latest` tag while installations migrate to versioned Releases.
+  executable, the `v1.0.N` tag, and the exact machine-readable Release-note marker
+  `<!-- coding-agent-account-switcher-version: 1.0.N -->`. Treat this marker as
+  an external update-discovery contract. Update discovery accepts the immutable
+  version tag when GitHub has not exposed the new Release notes yet, and also
+  accepts the legacy `latest` tag when its version marker is present.
 - Publish and verify the new Release assets before deleting uploaded assets from
   older Releases. Historical Release records and version tags remain available,
   but only the newest Release keeps downloadable binaries.

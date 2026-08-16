@@ -78,20 +78,34 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("tag_name", out var tagElement) ||
-            tagElement.ValueKind != JsonValueKind.String ||
-            !root.TryGetProperty("body", out var bodyElement) ||
-            bodyElement.ValueKind != JsonValueKind.String)
+            tagElement.ValueKind != JsonValueKind.String)
         {
             throw new InvalidDataException("The GitHub release metadata is incomplete or unexpected.");
         }
 
-        var latestVersion = ParseReleaseVersion(bodyElement.GetString()!);
-        var expectedTagName = $"v{FormatVersion(latestVersion)}";
-        var tagName = tagElement.GetString();
-        if (!string.Equals(tagName, expectedTagName, StringComparison.Ordinal) &&
-            !string.Equals(tagName, "latest", StringComparison.Ordinal))
+        var tagName = tagElement.GetString()!;
+        var releaseBody = TryGetReleaseBody(root);
+        Version latestVersion;
+        if (string.Equals(tagName, "latest", StringComparison.Ordinal))
         {
-            throw new InvalidDataException("The GitHub release tag does not match its version marker.");
+            // Legacy rolling Releases have no version in their tag, so their
+            // machine-readable note marker remains required during migration.
+            latestVersion = ParseReleaseVersion(releaseBody ?? string.Empty);
+        }
+        else
+        {
+            latestVersion = ParseVersionedTag(tagName);
+
+            // GitHub can briefly expose a newly published versioned Release
+            // before its notes are available. The immutable vX.Y.Z tag is
+            // sufficient in that state; when a marker is present, verify it.
+            if (releaseBody is not null &&
+                TryParseReleaseVersion(releaseBody, out var markedVersion) &&
+                markedVersion != latestVersion)
+            {
+                throw new InvalidDataException(
+                    "The GitHub release tag does not match its version marker.");
+            }
         }
 
         return new UpdateCheckResult(
@@ -106,7 +120,38 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
     internal static Version ParseReleaseVersion(string releaseBody)
     {
         ArgumentNullException.ThrowIfNull(releaseBody);
-        Version? parsedVersion = null;
+        return TryParseReleaseVersion(releaseBody, out var parsedVersion)
+            ? parsedVersion
+            : throw new InvalidDataException(
+                "The GitHub release does not contain an application version marker.");
+    }
+
+    internal static Version ParseVersionedTag(string tagName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+        if (!tagName.StartsWith('v') ||
+            !Version.TryParse(tagName.AsSpan(1), out var parsedVersion) ||
+            parsedVersion.Build < 0)
+        {
+            throw new InvalidDataException("The GitHub release tag is not a supported version tag.");
+        }
+
+        var normalizedVersion = NormalizeVersion(parsedVersion);
+        if (!string.Equals(
+                tagName,
+                $"v{FormatVersion(normalizedVersion)}",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The GitHub release tag is not in canonical version format.");
+        }
+
+        return normalizedVersion;
+    }
+
+    internal static bool TryParseReleaseVersion(string releaseBody, out Version parsedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(releaseBody);
+        Version? discoveredVersion = null;
         foreach (var rawLine in releaseBody.Split('\n'))
         {
             var line = rawLine.Trim();
@@ -124,16 +169,22 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
             }
 
             var normalizedCandidate = NormalizeVersion(candidate);
-            if (parsedVersion is not null && parsedVersion != normalizedCandidate)
+            if (discoveredVersion is not null && discoveredVersion != normalizedCandidate)
             {
                 throw new InvalidDataException("The GitHub release contains conflicting version markers.");
             }
 
-            parsedVersion = normalizedCandidate;
+            discoveredVersion = normalizedCandidate;
         }
 
-        return parsedVersion
-            ?? throw new InvalidDataException("The GitHub release does not contain an application version marker.");
+        if (discoveredVersion is null)
+        {
+            parsedVersion = default!;
+            return false;
+        }
+
+        parsedVersion = discoveredVersion;
+        return true;
     }
 
     internal static Version NormalizeVersion(Version version)
@@ -178,5 +229,18 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         }
 
         return output.ToArray();
+    }
+
+    private static string? TryGetReleaseBody(JsonElement root)
+    {
+        if (!root.TryGetProperty("body", out var bodyElement) ||
+            bodyElement.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        return bodyElement.ValueKind == JsonValueKind.String
+            ? bodyElement.GetString()
+            : throw new InvalidDataException("The GitHub release body has an unexpected format.");
     }
 }

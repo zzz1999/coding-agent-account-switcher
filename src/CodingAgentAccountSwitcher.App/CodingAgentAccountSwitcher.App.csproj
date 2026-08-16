@@ -12,7 +12,7 @@
     <RootNamespace>CodingAgentAccountSwitcher.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\CodingAgentAccountSwitcher.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <Authors>Coding Agent Account Switcher contributors</Authors>
     <Product>Coding Agent Account Switcher</Product>
     <Description>An unofficial local Windows account and API configuration switcher for Codex, Claude Code, and OpenCode.</Description>

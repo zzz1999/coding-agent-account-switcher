@@ -15,11 +15,11 @@ The versioned Release workflow compiles
 on GitHub-hosted Windows runners. To build the installer locally, first publish
 the self-contained application to `artifacts/publish`, copy `LICENSE` into that
 directory, and then run `ISCC.exe installer\CodingAgentAccountSwitcher.iss`.
-Each push to `main` uses the workflow run number as the next `0.1.N` patch
+Each push to `main` uses the workflow run number as the next `1.0.N` patch
 version. The workflow's single `APP_VERSION` value must version the executable,
-the `v0.1.N` Release tag, and the Release notes. Preserve the exact
+the `v1.0.N` Release tag, and the Release notes. Preserve the exact
 machine-readable marker contract
-`<!-- coding-agent-account-switcher-version: 0.1.N -->` when changing release
+`<!-- coding-agent-account-switcher-version: 1.0.N -->` when changing release
 packaging or update discovery.
 
 ## Pull request expectations

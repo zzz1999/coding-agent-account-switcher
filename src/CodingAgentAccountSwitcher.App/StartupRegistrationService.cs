@@ -67,7 +67,24 @@ public sealed class StartupRegistrationService
     }
 
     private static string BuildCommand()
-        => BuildCommand(Environment.ProcessPath, Assembly.GetEntryAssembly()?.Location);
+    {
+        var executablePath = Environment.ProcessPath;
+        string? entryAssemblyPath = null;
+        if (IsDotnetHost(executablePath))
+        {
+            var entryAssemblyName = Assembly.GetEntryAssembly()?.GetName().Name;
+            if (!string.IsNullOrWhiteSpace(entryAssemblyName))
+            {
+                // Assembly.Location is empty for single-file apps. A framework-
+                // dependent launch only needs this path when ProcessPath is dotnet.
+                entryAssemblyPath = Path.Combine(
+                    AppContext.BaseDirectory,
+                    $"{entryAssemblyName}.dll");
+            }
+        }
+
+        return BuildCommand(executablePath, entryAssemblyPath);
+    }
 
     internal static string BuildCommand(string? executablePath, string? entryAssemblyPath)
     {
@@ -76,10 +93,8 @@ public sealed class StartupRegistrationService
             throw new InvalidOperationException("The application executable path could not be resolved.");
         }
 
-        var executableName = Path.GetFileName(executablePath);
         string command;
-        if (string.Equals(executableName, "dotnet", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(executableName, "dotnet.exe", StringComparison.OrdinalIgnoreCase))
+        if (IsDotnetHost(executablePath))
         {
             if (string.IsNullOrWhiteSpace(entryAssemblyPath))
             {
@@ -99,6 +114,13 @@ public sealed class StartupRegistrationService
         }
 
         return command;
+    }
+
+    private static bool IsDotnetHost(string? executablePath)
+    {
+        var executableName = Path.GetFileName(executablePath);
+        return string.Equals(executableName, "dotnet", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(executableName, "dotnet.exe", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool ShouldMutateRegistration(
