@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
+using Tomlyn;
+using Tomlyn.Model;
 
 namespace CodingAgentAccountSwitcher.Core.Tests;
 
@@ -1236,12 +1238,11 @@ public sealed class ManagedConfigurationProfileTests
             adapter.WriteSnapshot(new AtomicFileWriter(), target, Guid.NewGuid());
 
             var merged = File.ReadAllText(adapter.ConfigurationFilePath);
-            Assert.Equal(1, CountOccurrences(merged, "model_provider ="));
-            Assert.Equal(1, CountOccurrences(merged, "model ="));
-            Assert.Equal(1, CountOccurrences(merged, "features.responses_websockets_v2 ="));
-            Assert.Contains("model_provider = \"ProviderA\"", merged);
-            Assert.Contains("model = \"target-model\"", merged);
-            Assert.Contains("features.responses_websockets_v2 = true", merged);
+            var model = ParseTomlTable(adapter.ConfigurationFilePath);
+            Assert.Equal("ProviderA", model["model_provider"]);
+            Assert.Equal("target-model", model["model"]);
+            Assert.True(Assert.IsType<bool>(
+                Assert.IsType<TomlTable>(model["features"])["responses_websockets_v2"]));
             Assert.DoesNotContain("ProviderB", merged);
             Assert.DoesNotContain("source-model", merged);
             Assert.DoesNotContain("https://source.invalid", merged);
@@ -1258,6 +1259,288 @@ public sealed class ManagedConfigurationProfileTests
             if (installed is not null)
             {
                 System.Security.Cryptography.CryptographicOperations.ZeroMemory(installed);
+            }
+        }
+    }
+
+    [Fact]
+    public void CodexCompanyProviderSyntaxFormsAreEquivalentAndSwitchAsOneAccountBundle()
+    {
+        var providerVariants = new[]
+        {
+            """
+            [model_providers.OpenAI]
+            name = "Company API"
+            base_url = "https://company.example.invalid/v1"
+            wire_api = "responses"
+            requires_openai_auth = false
+            http_headers = { "X-Account" = "target-actor" }
+            """,
+            """
+            model_providers.OpenAI.name = "Company API"
+            model_providers.OpenAI.base_url = "https://company.example.invalid/v1"
+            model_providers.OpenAI.wire_api = "responses"
+            model_providers.OpenAI.requires_openai_auth = false
+            model_providers.OpenAI.http_headers."X-Account" = "target-actor"
+            """,
+            """
+            model_providers = { OpenAI = { http_headers = { "X-Account" = "target-actor" }, requires_openai_auth = false, wire_api = "responses", base_url = "https://company.example.invalid/v1", name = "Company API" } }
+            """,
+            """
+            [model_providers]
+            OpenAI = { name = "Company API", base_url = "https://company.example.invalid/v1", wire_api = "responses", requires_openai_auth = false, http_headers = { "X-Account" = "target-actor" } }
+            """
+        };
+
+        byte[]? referenceSnapshot = null;
+        try
+        {
+            foreach (var providerVariant in providerVariants)
+            {
+                using var temporary = new TemporaryDirectory();
+                var adapter = new CodexAuthenticationAdapter(temporary.Path);
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(adapter.AuthenticationFilePath)!);
+                File.WriteAllText(
+                    adapter.AuthenticationFilePath,
+                    "{\"OPENAI_API_KEY\":\"dummy-company-target\"}");
+                File.WriteAllText(adapter.ConfigurationFilePath, $$"""
+                    model_provider = "OpenAI"
+                    model = "company-model"
+                    review_model = "company-review-model"
+                    model_reasoning_effort = "xhigh"
+                    disable_response_storage = true
+                    network_access = "enabled"
+                    windows_wsl_setup_acknowledged = true
+
+                    {{providerVariant}}
+
+                    [features]
+                    goals = true
+                    responses_websockets_v2 = true
+
+                    [mcp_servers.keep]
+                    command = "target-mcp"
+                    """);
+
+                var targetSnapshot = adapter.ReadSnapshot();
+                byte[]? installedSnapshot = null;
+                try
+                {
+                    if (referenceSnapshot is null)
+                    {
+                        referenceSnapshot = targetSnapshot.ToArray();
+                    }
+                    else
+                    {
+                        Assert.True(adapter.SnapshotsEqual(referenceSnapshot, targetSnapshot));
+                    }
+
+                    File.WriteAllText(
+                        adapter.AuthenticationFilePath,
+                        "{\"OPENAI_API_KEY\":\"dummy-company-source\"}");
+                    File.WriteAllText(adapter.ConfigurationFilePath, """
+                        model_provider = "OpenAI"
+                        model = "stale-model"
+                        network_access = "restricted"
+                        windows_wsl_setup_acknowledged = false
+                        features = { goals = false, js_repl = true, responses_websockets_v2 = false }
+                        model_providers = { OpenAI = { name = "Stale API", base_url = "https://stale.example.invalid/v1", wire_api = "responses", http_headers = { "X-Account" = "stale-actor" } }, Dormant = { base_url = "https://dormant.example.invalid/v1" } }
+
+                        [mcp_servers.keep]
+                        command = "keep-current"
+                        """);
+
+                    adapter.WriteSnapshot(new AtomicFileWriter(), targetSnapshot, Guid.NewGuid());
+
+                    var mergedText = File.ReadAllText(adapter.ConfigurationFilePath);
+                    var merged = ParseTomlTable(adapter.ConfigurationFilePath);
+                    Assert.Equal("OpenAI", Assert.IsType<string>(merged["model_provider"]));
+                    Assert.Equal("company-model", Assert.IsType<string>(merged["model"]));
+                    Assert.Equal("company-review-model", Assert.IsType<string>(merged["review_model"]));
+                    Assert.Equal("xhigh", Assert.IsType<string>(merged["model_reasoning_effort"]));
+                    Assert.True(Assert.IsType<bool>(merged["disable_response_storage"]));
+                    Assert.Equal("restricted", Assert.IsType<string>(merged["network_access"]));
+                    Assert.False(Assert.IsType<bool>(merged["windows_wsl_setup_acknowledged"]));
+
+                    var providers = Assert.IsType<TomlTable>(merged["model_providers"]);
+                    var selectedProvider = Assert.IsType<TomlTable>(providers["OpenAI"]);
+                    Assert.Equal(
+                        "https://company.example.invalid/v1",
+                        Assert.IsType<string>(selectedProvider["base_url"]));
+                    Assert.Equal(
+                        "target-actor",
+                        Assert.IsType<string>(
+                            Assert.IsType<TomlTable>(selectedProvider["http_headers"])["X-Account"]));
+                    Assert.True(providers.ContainsKey("Dormant"));
+                    Assert.DoesNotContain("https://stale.example.invalid/v1", mergedText);
+                    Assert.DoesNotContain("stale-actor", mergedText);
+
+                    var features = Assert.IsType<TomlTable>(merged["features"]);
+                    Assert.False(Assert.IsType<bool>(features["goals"]));
+                    Assert.True(Assert.IsType<bool>(features["js_repl"]));
+                    Assert.True(Assert.IsType<bool>(features["responses_websockets_v2"]));
+                    Assert.Equal(
+                        "keep-current",
+                        Assert.IsType<string>(
+                            Assert.IsType<TomlTable>(
+                                Assert.IsType<TomlTable>(merged["mcp_servers"])["keep"])["command"]));
+
+                    installedSnapshot = adapter.ReadSnapshot();
+                    Assert.True(adapter.SnapshotsEqual(targetSnapshot, installedSnapshot));
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(targetSnapshot);
+                    if (installedSnapshot is not null)
+                    {
+                        CryptographicOperations.ZeroMemory(installedSnapshot);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (referenceSnapshot is not null)
+            {
+                CryptographicOperations.ZeroMemory(referenceSnapshot);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("[features]\ngoals = true\n[features]\njs_repl = true\n")]
+    [InlineData("model = \"first\"\nmodel = \"second\"\n")]
+    [InlineData("features = { goals = true }\nfeatures.js_repl = true\n")]
+    public void InvalidSemanticCodexTomlIsRejectedBeforeAnyFileOperation(
+        string invalidConfiguration)
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = new CodexAuthenticationAdapter(temporary.Path);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(adapter.AuthenticationFilePath)!);
+        WriteCodexAccount(adapter, "a", "https://target.example.invalid", "target-mcp");
+        var target = adapter.ReadSnapshot();
+        const string sourceAuthentication = "{\"OPENAI_API_KEY\":\"dummy-source\"}";
+        try
+        {
+            File.WriteAllText(adapter.AuthenticationFilePath, sourceAuthentication);
+            File.WriteAllText(adapter.ConfigurationFilePath, invalidConfiguration);
+
+            Assert.Throws<InvalidDataException>(
+                () => adapter.WriteSnapshot(
+                    new FailBeforeOperationWriter(1),
+                    target,
+                    Guid.NewGuid()));
+            Assert.Equal(sourceAuthentication, File.ReadAllText(adapter.AuthenticationFilePath));
+            Assert.Equal(invalidConfiguration, File.ReadAllText(adapter.ConfigurationFilePath));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(target);
+        }
+    }
+
+    [Fact]
+    public void CodexMergeSeparatesManagedRootValuesWhenCurrentFileHasNoTrailingNewline()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = new CodexAuthenticationAdapter(temporary.Path);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(adapter.AuthenticationFilePath)!);
+        WriteCodexAccount(adapter, "target", "https://target.example.invalid", "target-mcp");
+        var target = adapter.ReadSnapshot();
+        try
+        {
+            File.WriteAllText(adapter.AuthenticationFilePath, "{\"OPENAI_API_KEY\":\"dummy-source\"}");
+            File.WriteAllText(adapter.ConfigurationFilePath, "notify = [\"keep-current\"]");
+
+            adapter.WriteSnapshot(new AtomicFileWriter(), target, Guid.NewGuid());
+
+            var merged = ParseTomlTable(adapter.ConfigurationFilePath);
+            Assert.Equal("model-target", Assert.IsType<string>(merged["model"]));
+            Assert.Equal(
+                "keep-current",
+                Assert.IsType<string>(Assert.IsType<TomlArray>(merged["notify"])[0]));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(target);
+        }
+    }
+
+    [Fact]
+    public void CodexProviderOnlySnapshotCanBeSavedAndRemovesAnExistingAuthFile()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = new CodexAuthenticationAdapter(temporary.Path);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(adapter.ConfigurationFilePath)!);
+        File.WriteAllText(adapter.ConfigurationFilePath, """
+            model_provider = "ProviderOnly"
+            model = "provider-only-model"
+
+            [model_providers.ProviderOnly]
+            base_url = "https://provider-only.example.invalid/v1"
+            wire_api = "responses"
+            experimental_bearer_token = "dummy-provider-only-token"
+
+            [mcp_servers.keep]
+            command = "target-mcp"
+            """);
+
+        Assert.False(File.Exists(adapter.AuthenticationFilePath));
+        Assert.True(adapter.HasCurrentSnapshot);
+        var target = adapter.ReadSnapshot();
+        byte[]? installed = null;
+        try
+        {
+            Assert.True(AuthenticationSnapshotCodec.TryDecode(target, out var decoded));
+            try
+            {
+                Assert.NotNull(decoded);
+                Assert.False(decoded.AuthenticationFileExists);
+            }
+            finally
+            {
+                AuthenticationSnapshotCodec.Zero(decoded);
+            }
+
+            File.WriteAllText(
+                adapter.AuthenticationFilePath,
+                "{\"OPENAI_API_KEY\":\"dummy-source\"}");
+            File.WriteAllText(adapter.ConfigurationFilePath, """
+                model_provider = "Source"
+                model = "source-model"
+
+                [model_providers.Source]
+                base_url = "https://source.example.invalid/v1"
+
+                [mcp_servers.keep]
+                command = "keep-current"
+                """);
+
+            adapter.WriteSnapshot(new AtomicFileWriter(), target, Guid.NewGuid());
+
+            Assert.False(File.Exists(adapter.AuthenticationFilePath));
+            var merged = ParseTomlTable(adapter.ConfigurationFilePath);
+            Assert.Equal("ProviderOnly", Assert.IsType<string>(merged["model_provider"]));
+            Assert.Equal(
+                "https://provider-only.example.invalid/v1",
+                Assert.IsType<string>(
+                    Assert.IsType<TomlTable>(
+                        Assert.IsType<TomlTable>(merged["model_providers"])["ProviderOnly"])["base_url"]));
+            Assert.Equal(
+                "keep-current",
+                Assert.IsType<string>(
+                    Assert.IsType<TomlTable>(
+                        Assert.IsType<TomlTable>(merged["mcp_servers"])["keep"])["command"]));
+
+            installed = adapter.ReadSnapshot();
+            Assert.True(adapter.SnapshotsEqual(target, installed));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(target);
+            if (installed is not null)
+            {
+                CryptographicOperations.ZeroMemory(installed);
             }
         }
     }
@@ -1289,6 +1572,9 @@ public sealed class ManagedConfigurationProfileTests
 
     private static JsonObject ParseObject(string path) =>
         Assert.IsType<JsonObject>(JsonNode.Parse(File.ReadAllText(path)));
+
+    private static TomlTable ParseTomlTable(string path) =>
+        Assert.IsType<TomlTable>(TomlSerializer.Deserialize<TomlTable>(File.ReadAllText(path)));
 
     private static int CountOccurrences(string value, string searchValue)
     {

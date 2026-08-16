@@ -1,6 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Tomlyn;
+using Tomlyn.Model;
+using Tomlyn.Parsing;
+using Tomlyn.Syntax;
 
 namespace CodingAgentAccountSwitcher.Core;
 
@@ -533,6 +537,8 @@ internal sealed record CodexConfigurationSnapshot
 
 internal static class CodexManagedConfiguration
 {
+    private const string ResponsesWebSocketsV2Key = "responses_websockets_v2";
+
     private static readonly string[] ManagedTopLevelKeys =
     [
         "model_provider",
@@ -543,87 +549,59 @@ internal static class CodexManagedConfiguration
         "disable_response_storage"
     ];
 
-    private static readonly JsonSerializerOptions SnapshotOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> ManagedTopLevelKeySet =
+        new(ManagedTopLevelKeys, StringComparer.Ordinal);
+
+    private static readonly JsonSerializerOptions SnapshotOptions =
+        new(JsonSerializerDefaults.Web);
 
     internal static byte[] Capture(string path)
     {
         var source = ManagedConfigurationFiles.ReadIfExists(path);
         if (source is null || source.Length == 0)
         {
-            return JsonSerializer.SerializeToUtf8Bytes(new CodexConfigurationSnapshot(), SnapshotOptions);
+            return EmptySnapshot();
         }
 
         try
         {
-            var text = ManagedConfigurationFiles.DecodeUtf8(source);
-            var lines = LexLines(text);
-            var observedTopLevel = new Dictionary<string, string>(StringComparer.Ordinal);
-            string? responsesWebSocketsV2 = null;
-            IReadOnlyList<string> tablePath = Array.Empty<string>();
-
-            for (var index = 0; index < lines.Count; index++)
-            {
-                var line = lines[index];
-                if (TryParseTablePath(line, out var parsedTablePath))
-                {
-                    tablePath = parsedTablePath;
-                    continue;
-                }
-
-                if (!TryParseAssignment(line, out var keyPath, out var rawValue))
-                {
-                    continue;
-                }
-
-                if (IsManagedTopLevelAssignment(tablePath, keyPath))
-                {
-                    var key = keyPath[0];
-                    if (observedTopLevel.ContainsKey(key))
-                    {
-                        throw new InvalidDataException(
-                            $"The Codex configuration contains duplicate {key} settings.");
-                    }
-                    observedTopLevel[key] = CaptureAssignmentValue(lines, index, rawValue);
-                }
-                else if (IsResponsesWebSocketsAssignment(tablePath, keyPath))
-                {
-                    if (responsesWebSocketsV2 is not null)
-                    {
-                        throw new InvalidDataException(
-                            "The Codex configuration contains duplicate responses_websockets_v2 settings.");
-                    }
-                    responsesWebSocketsV2 = CaptureAssignmentValue(lines, index, rawValue);
-                }
-            }
-
+            var sourceText = ManagedConfigurationFiles.DecodeUtf8(source);
+            var root = ParseToml(sourceText, "Codex configuration");
             var topLevel = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var key in ManagedTopLevelKeys)
             {
-                if (observedTopLevel.TryGetValue(key, out var value))
+                if (!root.TryGetValue(key, out var value))
                 {
-                    topLevel[key] = value;
+                    continue;
                 }
+
+                ValidateManagedTopLevelValue(key, value, "Codex configuration");
+                topLevel[key] = SerializeValue(value);
             }
 
-            string? providerIdentifier = null;
-            if (topLevel.TryGetValue("model_provider", out var rawProvider))
+            var providerIdentifier = GetProviderIdentifier(root, "Codex configuration");
+            var providerSections = CaptureProviderSections(root, providerIdentifier);
+            string? responsesWebSocketsV2 = null;
+            var features = GetOptionalTable(root, "features", "Codex configuration");
+            if (features is not null &&
+                features.TryGetValue(ResponsesWebSocketsV2Key, out var responsesValue))
             {
-                providerIdentifier = TryParseTomlString(rawProvider) ??
+                if (responsesValue is not bool enabled)
+                {
                     throw new InvalidDataException(
-                        "The Codex model_provider setting must be a TOML string.");
+                        "The Codex features.responses_websockets_v2 setting must be a TOML boolean.");
+                }
+
+                responsesWebSocketsV2 = enabled ? "true" : "false";
             }
 
-            var providerSections = providerIdentifier is null
-                ? null
-                : CaptureProviderSections(lines, providerIdentifier);
-            var snapshot = new CodexConfigurationSnapshot
+            return SerializeSnapshot(new CodexConfigurationSnapshot
             {
                 TopLevel = topLevel,
                 ResponsesWebSocketsV2 = responsesWebSocketsV2,
                 ModelProviderIdentifier = providerIdentifier,
                 ModelProviderSections = providerSections
-            };
-            return JsonSerializer.SerializeToUtf8Bytes(snapshot, SnapshotOptions);
+            });
         }
         finally
         {
@@ -632,37 +610,34 @@ internal static class CodexManagedConfiguration
     }
 
     internal static byte[] EmptySnapshot() =>
-        JsonSerializer.SerializeToUtf8Bytes(new CodexConfigurationSnapshot(), SnapshotOptions);
+        SerializeSnapshot(new CodexConfigurationSnapshot());
 
-    internal static bool HasManagedValues(byte[] capturedBytes)
+    internal static bool HasManagedValues(byte[] capturedBytes) =>
+        !IsEmpty(DeserializeAndNormalizeSnapshot(capturedBytes));
+
+    internal static bool SnapshotsEqual(byte[] left, byte[] right)
     {
         try
         {
-            var snapshot = JsonSerializer.Deserialize<CodexConfigurationSnapshot>(
-                capturedBytes,
-                SnapshotOptions) ?? throw new InvalidDataException(
-                    "The saved Codex configuration snapshot is empty.");
-            return !IsEmpty(snapshot);
+            var normalizedLeft = DeserializeAndNormalizeSnapshot(left);
+            var normalizedRight = DeserializeAndNormalizeSnapshot(right);
+            return SnapshotValuesEqual(normalizedLeft, normalizedRight);
         }
-        catch (JsonException exception)
+        catch (InvalidDataException)
         {
-            throw new InvalidDataException("The saved Codex configuration snapshot is invalid.", exception);
+            return false;
         }
     }
 
+    internal static bool IsRecognizedPartial(
+        byte[] source,
+        byte[] target,
+        byte[] current) =>
+        SnapshotsEqual(source, current) || SnapshotsEqual(target, current);
+
     internal static byte[]? Merge(string path, byte[] capturedBytes)
     {
-        CodexConfigurationSnapshot captured;
-        try
-        {
-            captured = JsonSerializer.Deserialize<CodexConfigurationSnapshot>(capturedBytes, SnapshotOptions) ??
-                throw new InvalidDataException("The saved Codex configuration snapshot is empty.");
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException("The saved Codex configuration snapshot is invalid.", exception);
-        }
-
+        var captured = DeserializeAndNormalizeSnapshot(capturedBytes);
         var source = ManagedConfigurationFiles.ReadIfExists(path);
         if (source is null && IsEmpty(captured))
         {
@@ -674,106 +649,34 @@ internal static class CodexManagedConfiguration
             var sourceText = source is null || source.Length == 0
                 ? string.Empty
                 : ManagedConfigurationFiles.DecodeUtf8(source);
-            var newLine = DetectNewLine(sourceText);
-            var sourceLines = LexLines(sourceText);
-            var retained = new List<string>(sourceLines.Count + 16);
-            IReadOnlyList<string> tablePath = Array.Empty<string>();
-            var skipProviderSection = false;
-            var currentProviderIdentifier = FindActiveProviderIdentifier(sourceLines);
+            var sourceDocument = ParseSyntax(sourceText, "Codex configuration");
+            var sourceRoot = ParseToml(sourceText, "Codex configuration");
+            var currentProviderIdentifier =
+                GetProviderIdentifier(sourceRoot, "Codex configuration");
+            var fragment = BuildManagedFragment(
+                sourceRoot,
+                currentProviderIdentifier,
+                captured);
 
-            for (var index = 0; index < sourceLines.Count; index++)
+            RemoveManagedNodes(sourceDocument);
+            var newLine = sourceText.Contains("\r\n", StringComparison.Ordinal)
+                ? "\r\n"
+                : "\n";
+            var fragmentText = SerializeTable(fragment, newLine);
+            var fragmentDocument = ParseSyntax(fragmentText, "merged Codex configuration");
+            MoveDocumentContents(fragmentDocument, sourceDocument);
+
+            var mergedText = sourceDocument.ToString();
+            _ = ParseToml(mergedText, "merged Codex configuration");
+            var merged = ManagedConfigurationFiles.EncodeUtf8(mergedText);
+            if (merged.Length > ManagedConfigurationFiles.MaximumConfigurationSizeBytes)
             {
-                var line = sourceLines[index];
-                if (TryParseTablePath(line, out var parsedTablePath))
-                {
-                    tablePath = parsedTablePath;
-                    skipProviderSection =
-                        (currentProviderIdentifier is not null &&
-                         IsProviderPath(tablePath, currentProviderIdentifier)) ||
-                        (captured.ModelProviderIdentifier is not null &&
-                         IsProviderPath(tablePath, captured.ModelProviderIdentifier));
-                    if (skipProviderSection)
-                    {
-                        continue;
-                    }
-                }
-                else if (skipProviderSection)
-                {
-                    continue;
-                }
-
-                if (TryParseAssignment(line, out var keyPath, out _) &&
-                    (IsManagedTopLevelAssignment(tablePath, keyPath) ||
-                     IsResponsesWebSocketsAssignment(tablePath, keyPath)))
-                {
-                    while (index + 1 < sourceLines.Count &&
-                        !sourceLines[index + 1].CanStartStatement)
-                    {
-                        index++;
-                    }
-                    continue;
-                }
-
-                retained.Add(line.Text);
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(merged);
+                throw new InvalidDataException(
+                    "The merged Codex configuration is too large.");
             }
 
-            var topLevelLines = new List<string>();
-            foreach (var key in ManagedTopLevelKeys)
-            {
-                if (captured.TopLevel.TryGetValue(key, out var value))
-                {
-                    topLevelLines.Add($"{key} = {value.Replace("\n", newLine, StringComparison.Ordinal)}");
-                }
-            }
-
-            if (topLevelLines.Count > 0)
-            {
-                var firstTable = FindFirstTableIndex(retained);
-                if (firstTable < 0)
-                {
-                    firstTable = retained.Count;
-                }
-
-                retained.InsertRange(firstTable, topLevelLines);
-            }
-
-            if (captured.ResponsesWebSocketsV2 is not null)
-            {
-                var featuresHeader = FindTableIndex(retained, "features");
-                if (featuresHeader >= 0)
-                {
-                    retained.Insert(featuresHeader + 1,
-                        $"responses_websockets_v2 = {captured.ResponsesWebSocketsV2.Replace("\n", newLine, StringComparison.Ordinal)}");
-                }
-                else
-                {
-                    var firstTable = FindFirstTableIndex(retained);
-                    if (firstTable < 0)
-                    {
-                        firstTable = retained.Count;
-                    }
-
-                    // A root dotted key remains valid even when the source already
-                    // defines other feature values with dotted keys. Appending a new
-                    // [features] header could otherwise redefine that implicit table.
-                    retained.Insert(
-                        firstTable,
-                        $"features.responses_websockets_v2 = {captured.ResponsesWebSocketsV2.Replace("\n", newLine, StringComparison.Ordinal)}");
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(captured.ModelProviderSections))
-            {
-                AppendSeparated(retained, captured.ModelProviderSections!.TrimEnd('\r', '\n'));
-            }
-
-            var mergedText = string.Join(newLine, retained);
-            if (retained.Count > 0 && !mergedText.EndsWith(newLine, StringComparison.Ordinal))
-            {
-                mergedText += newLine;
-            }
-
-            return ManagedConfigurationFiles.EncodeUtf8(mergedText);
+            return merged;
         }
         finally
         {
@@ -784,626 +687,647 @@ internal static class CodexManagedConfiguration
         }
     }
 
-    private static bool IsEmpty(CodexConfigurationSnapshot snapshot) =>
-        snapshot.TopLevel.Count == 0 && snapshot.ResponsesWebSocketsV2 is null &&
-        string.IsNullOrWhiteSpace(snapshot.ModelProviderSections);
-
-    private static string? CaptureProviderSections(
-        IReadOnlyList<LexedTomlLine> lines,
-        string providerIdentifier)
+    private static TomlTable BuildManagedFragment(
+        TomlTable sourceRoot,
+        string? currentProviderIdentifier,
+        CodexConfigurationSnapshot captured)
     {
-        var captured = new List<string>();
-        var inProviderSection = false;
-        foreach (var line in lines)
+        var fragment = new TomlTable();
+        foreach (var key in ManagedTopLevelKeys)
         {
-            if (TryParseTablePath(line, out var tablePath))
+            if (!captured.TopLevel.TryGetValue(key, out var rawValue))
             {
-                inProviderSection = IsProviderPath(tablePath, providerIdentifier);
-            }
-
-            if (inProviderSection)
-            {
-                captured.Add(line.Text);
-            }
-        }
-
-        return captured.Count == 0
-            ? null
-            : string.Join("\n", captured).TrimEnd('\r', '\n');
-    }
-
-    private static bool IsProviderPath(IReadOnlyList<string> path, string providerIdentifier) =>
-        path.Count >= 2 && path[0] == "model_providers" && path[1] == providerIdentifier;
-
-    private static string CaptureAssignmentValue(
-        IReadOnlyList<LexedTomlLine> lines,
-        int assignmentIndex,
-        string firstLineValue)
-    {
-        var valueLines = new List<string> { firstLineValue };
-        for (var index = assignmentIndex + 1;
-             index < lines.Count && !lines[index].CanStartStatement;
-             index++)
-        {
-            valueLines.Add(lines[index].Text);
-        }
-
-        return string.Join("\n", valueLines).TrimEnd('\r', '\n');
-    }
-
-    private static string? FindActiveProviderIdentifier(IReadOnlyList<LexedTomlLine> lines)
-    {
-        IReadOnlyList<string> tablePath = Array.Empty<string>();
-        string? providerIdentifier = null;
-        for (var index = 0; index < lines.Count; index++)
-        {
-            var line = lines[index];
-            if (TryParseTablePath(line, out var parsedTablePath))
-            {
-                tablePath = parsedTablePath;
                 continue;
             }
 
-            if (tablePath.Count == 0 &&
-                TryParseAssignment(line, out var keyPath, out var rawValue) &&
-                keyPath.Count == 1 && keyPath[0] == "model_provider")
+            fragment[key] = ParseManagedTopLevelValue(key, rawValue);
+        }
+
+        var features = CloneOptionalTable(
+            sourceRoot,
+            "features",
+            "Codex configuration");
+        features?.Remove(ResponsesWebSocketsV2Key);
+        if (captured.ResponsesWebSocketsV2 is not null)
+        {
+            features ??= new TomlTable();
+            features[ResponsesWebSocketsV2Key] =
+                ParseBooleanValue(captured.ResponsesWebSocketsV2);
+        }
+        if (features is { Count: > 0 })
+        {
+            fragment["features"] = features;
+        }
+
+        var providers = CloneOptionalTable(
+            sourceRoot,
+            "model_providers",
+            "Codex configuration") ?? new TomlTable();
+        if (currentProviderIdentifier is not null)
+        {
+            providers.Remove(currentProviderIdentifier);
+        }
+        if (captured.ModelProviderIdentifier is not null)
+        {
+            providers.Remove(captured.ModelProviderIdentifier);
+            var targetProvider = ReadCapturedProvider(captured);
+            if (targetProvider is not null)
             {
-                if (providerIdentifier is not null)
-                {
-                    throw new InvalidDataException(
-                        "The Codex configuration contains duplicate model_provider settings.");
-                }
-                providerIdentifier = TryParseTomlString(
-                    CaptureAssignmentValue(lines, index, rawValue)) ??
-                    throw new InvalidDataException(
-                        "The Codex model_provider setting must be a TOML string.");
+                providers[captured.ModelProviderIdentifier] = targetProvider;
             }
+        }
+        if (providers.Count > 0)
+        {
+            fragment["model_providers"] = providers;
+        }
+
+        return fragment;
+    }
+
+    private static CodexConfigurationSnapshot DeserializeAndNormalizeSnapshot(
+        byte[] capturedBytes)
+    {
+        ArgumentNullException.ThrowIfNull(capturedBytes);
+        CodexConfigurationSnapshot snapshot;
+        try
+        {
+            snapshot = JsonSerializer.Deserialize<CodexConfigurationSnapshot>(
+                capturedBytes,
+                SnapshotOptions) ?? throw new InvalidDataException(
+                "The saved Codex configuration snapshot is empty.");
+        }
+        catch (JsonException)
+        {
+            throw new InvalidDataException(
+                "The saved Codex configuration snapshot is invalid.");
+        }
+
+        if (snapshot.TopLevel is null)
+        {
+            throw new InvalidDataException(
+                "The saved Codex configuration snapshot is invalid.");
+        }
+
+        var normalizedTopLevel = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in snapshot.TopLevel)
+        {
+            if (!ManagedTopLevelKeySet.Contains(entry.Key) ||
+                string.IsNullOrWhiteSpace(entry.Value))
+            {
+                throw new InvalidDataException(
+                    "The saved Codex configuration snapshot contains an unsupported setting.");
+            }
+
+            var value = ParseManagedTopLevelValue(entry.Key, entry.Value);
+            normalizedTopLevel[entry.Key] = SerializeValue(value);
+        }
+
+        var providerIdentifier = normalizedTopLevel.TryGetValue(
+            "model_provider",
+            out var rawProvider)
+            ? ParseStringValue("model_provider", rawProvider)
+            : null;
+        if (!string.Equals(
+                providerIdentifier,
+                snapshot.ModelProviderIdentifier,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The saved Codex configuration snapshot has inconsistent provider routing.");
+        }
+
+        string? responsesWebSocketsV2 = null;
+        if (snapshot.ResponsesWebSocketsV2 is not null)
+        {
+            responsesWebSocketsV2 =
+                ParseBooleanValue(snapshot.ResponsesWebSocketsV2)
+                    ? "true"
+                    : "false";
+        }
+
+        var providerSections = NormalizeProviderSections(
+            snapshot.ModelProviderSections,
+            providerIdentifier);
+        return new CodexConfigurationSnapshot
+        {
+            TopLevel = normalizedTopLevel,
+            ResponsesWebSocketsV2 = responsesWebSocketsV2,
+            ModelProviderIdentifier = providerIdentifier,
+            ModelProviderSections = providerSections
+        };
+    }
+
+    private static string? NormalizeProviderSections(
+        string? providerSections,
+        string? providerIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(providerSections))
+        {
+            return null;
+        }
+        if (providerIdentifier is null)
+        {
+            throw new InvalidDataException(
+                "The saved Codex configuration snapshot contains provider settings without a provider.");
+        }
+
+        var root = ParseToml(providerSections, "saved Codex provider configuration");
+        if (root.Count != 1 ||
+            !root.TryGetValue("model_providers", out var providersValue) ||
+            providersValue is not TomlTable providers ||
+            providers.Count != 1 ||
+            !providers.TryGetValue(providerIdentifier, out var providerValue) ||
+            providerValue is not TomlTable provider)
+        {
+            throw new InvalidDataException(
+                "The saved Codex provider configuration has an unexpected structure.");
+        }
+
+        return SerializeProvider(providerIdentifier, provider);
+    }
+
+    private static string? CaptureProviderSections(
+        TomlTable root,
+        string? providerIdentifier)
+    {
+        if (providerIdentifier is null)
+        {
+            return null;
+        }
+
+        var providers = GetOptionalTable(
+            root,
+            "model_providers",
+            "Codex configuration");
+        if (providers is null ||
+            !providers.TryGetValue(providerIdentifier, out var providerValue))
+        {
+            return null;
+        }
+        if (providerValue is not TomlTable provider)
+        {
+            throw new InvalidDataException(
+                "The selected Codex model provider must be a TOML table.");
+        }
+
+        return SerializeProvider(providerIdentifier, provider);
+    }
+
+    private static TomlTable? ReadCapturedProvider(
+        CodexConfigurationSnapshot captured)
+    {
+        if (captured.ModelProviderIdentifier is null ||
+            string.IsNullOrWhiteSpace(captured.ModelProviderSections))
+        {
+            return null;
+        }
+
+        var root = ParseToml(
+            captured.ModelProviderSections,
+            "saved Codex provider configuration");
+        var providers = GetRequiredTable(
+            root,
+            "model_providers",
+            "saved Codex provider configuration");
+        if (!providers.TryGetValue(
+                captured.ModelProviderIdentifier,
+                out var providerValue) ||
+            providerValue is not TomlTable provider)
+        {
+            throw new InvalidDataException(
+                "The saved Codex provider configuration is missing the selected provider.");
+        }
+
+        return CloneTable(provider);
+    }
+
+    private static string SerializeProvider(
+        string providerIdentifier,
+        TomlTable provider)
+    {
+        var providers = new TomlTable
+        {
+            [providerIdentifier] = CloneTable(provider)
+        };
+        var root = new TomlTable
+        {
+            ["model_providers"] = providers
+        };
+        return SerializeTable(root, "\n").TrimEnd('\r', '\n');
+    }
+
+    private static object ParseManagedTopLevelValue(string key, string rawValue)
+    {
+        var value = ParseSingleValue(rawValue, "saved Codex configuration snapshot");
+        ValidateManagedTopLevelValue(key, value, "saved Codex configuration snapshot");
+        return value;
+    }
+
+    private static void ValidateManagedTopLevelValue(
+        string key,
+        object value,
+        string description)
+    {
+        var expected = key == "disable_response_storage"
+            ? value is bool
+            : value is string;
+        if (!expected)
+        {
+            var expectedType = key == "disable_response_storage"
+                ? "boolean"
+                : "string";
+            throw new InvalidDataException(
+                $"The {description} {key} setting must be a TOML {expectedType}.");
+        }
+    }
+
+    private static string? GetProviderIdentifier(
+        TomlTable root,
+        string description)
+    {
+        if (!root.TryGetValue("model_provider", out var providerValue))
+        {
+            return null;
+        }
+        if (providerValue is not string providerIdentifier ||
+            string.IsNullOrWhiteSpace(providerIdentifier))
+        {
+            throw new InvalidDataException(
+                $"The {description} model_provider setting must be a non-empty TOML string.");
         }
 
         return providerIdentifier;
     }
 
-    private static int FindFirstTableIndex(IReadOnlyList<string> lines)
+    private static string ParseStringValue(string key, string rawValue)
     {
-        var lexed = LexLines(string.Join("\n", lines));
-        for (var index = 0; index < lexed.Count; index++)
+        var value = ParseSingleValue(rawValue, "saved Codex configuration snapshot");
+        if (value is not string parsed || string.IsNullOrWhiteSpace(parsed))
         {
-            if (TryParseTablePath(lexed[index], out _))
-            {
-                return index;
-            }
+            throw new InvalidDataException(
+                $"The saved Codex configuration snapshot {key} setting must be a non-empty TOML string.");
         }
 
-        return -1;
+        return parsed;
     }
 
-    private static int FindTableIndex(IReadOnlyList<string> lines, string tableName)
+    private static bool ParseBooleanValue(string rawValue)
     {
-        var lexed = LexLines(string.Join("\n", lines));
-        for (var index = 0; index < lexed.Count; index++)
+        var value = ParseSingleValue(rawValue, "saved Codex configuration snapshot");
+        if (value is not bool parsed)
         {
-            if (TryParseTablePath(lexed[index], out var path) &&
-                path.Count == 1 && path[0] == tableName)
-            {
-                return index;
-            }
+            throw new InvalidDataException(
+                "The saved Codex responses_websockets_v2 setting must be a TOML boolean.");
         }
 
-        return -1;
+        return parsed;
     }
 
-    private static bool TryParseAssignment(
-        LexedTomlLine line,
-        out IReadOnlyList<string> keyPath,
-        out string rawValue)
+    private static object ParseSingleValue(string rawValue, string description)
     {
-        keyPath = Array.Empty<string>();
-        rawValue = string.Empty;
-        if (!line.CanStartStatement)
+        if (string.IsNullOrWhiteSpace(rawValue))
         {
-            return false;
+            throw new InvalidDataException($"The {description} contains an empty value.");
         }
 
-        var trimmed = line.Text.TrimStart();
-        if (trimmed.Length == 0 || trimmed[0] == '#')
+        var root = ParseToml(
+            $"snapshot_value = {rawValue}\n",
+            description);
+        if (root.Count != 1 ||
+            !root.TryGetValue("snapshot_value", out var value))
         {
-            return false;
+            throw new InvalidDataException(
+                $"The {description} contains more than one setting in a saved value.");
         }
 
-        var equalsIndex = FindAssignmentSeparator(trimmed);
-        if (equalsIndex <= 0)
-        {
-            return false;
-        }
-
-        var candidate = trimmed[..equalsIndex].Trim();
-        if (!TryParseDottedKey(candidate, out keyPath))
-        {
-            return false;
-        }
-
-        rawValue = trimmed[(equalsIndex + 1)..].Trim();
-        return rawValue.Length > 0;
+        return CloneTomlValue(value);
     }
 
-    private static bool IsManagedTopLevelAssignment(
-        IReadOnlyList<string> tablePath,
-        IReadOnlyList<string> keyPath) =>
-        tablePath.Count == 0 && keyPath.Count == 1 &&
-        ManagedTopLevelKeys.Contains(keyPath[0], StringComparer.Ordinal);
-
-    private static bool IsResponsesWebSocketsAssignment(
-        IReadOnlyList<string> tablePath,
-        IReadOnlyList<string> keyPath) =>
-        (tablePath.Count == 1 && tablePath[0] == "features" &&
-         keyPath.Count == 1 && keyPath[0] == "responses_websockets_v2") ||
-        (tablePath.Count == 0 && keyPath.Count == 2 &&
-         keyPath[0] == "features" && keyPath[1] == "responses_websockets_v2");
-
-    private static int FindAssignmentSeparator(string value)
+    private static string SerializeValue(object value)
     {
-        var quote = '\0';
-        var escaped = false;
-        for (var index = 0; index < value.Length; index++)
+        var root = new TomlTable
         {
-            var character = value[index];
-            if (escaped)
-            {
-                escaped = false;
-                continue;
-            }
-
-            if (quote == '"' && character == '\\')
-            {
-                escaped = true;
-                continue;
-            }
-
-            if (character is '"' or '\'')
-            {
-                quote = quote == '\0' ? character : quote == character ? '\0' : quote;
-            }
-            else if (character == '=' && quote == '\0')
-            {
-                return index;
-            }
+            ["snapshot_value"] = CloneTomlValue(value)
+        };
+        var document = ParseSyntax(
+            SerializeTable(root, "\n"),
+            "normalized Codex configuration value");
+        if (document.KeyValues.ChildrenCount != 1)
+        {
+            throw new InvalidDataException(
+                "A Codex configuration value could not be normalized.");
         }
 
-        return -1;
+        var keyValue = document.KeyValues.GetChild(0);
+        return keyValue?.Value?.ToString() ??
+            throw new InvalidDataException(
+                "A Codex configuration value could not be normalized.");
     }
 
-    private static bool TryParseDottedKey(string value, out IReadOnlyList<string> path)
+    private static TomlTable? GetOptionalTable(
+        TomlTable root,
+        string key,
+        string description)
     {
-        path = Array.Empty<string>();
-        var rawSegments = new List<string>();
-        var current = new StringBuilder();
-        var quote = '\0';
-        var escaped = false;
-        foreach (var character in value)
-        {
-            if (escaped)
-            {
-                current.Append(character);
-                escaped = false;
-                continue;
-            }
-
-            if (quote == '"' && character == '\\')
-            {
-                current.Append(character);
-                escaped = true;
-                continue;
-            }
-
-            if (character is '"' or '\'')
-            {
-                quote = quote == '\0' ? character : quote == character ? '\0' : quote;
-                current.Append(character);
-                continue;
-            }
-
-            if (character == '.' && quote == '\0')
-            {
-                rawSegments.Add(current.ToString().Trim());
-                current.Clear();
-                continue;
-            }
-
-            current.Append(character);
-        }
-
-        if (quote != '\0' || escaped)
-        {
-            return false;
-        }
-
-        rawSegments.Add(current.ToString().Trim());
-        var segments = new List<string>(rawSegments.Count);
-        foreach (var rawSegment in rawSegments)
-        {
-            if (!TryParseKeySegment(rawSegment, out var segment))
-            {
-                return false;
-            }
-
-            segments.Add(segment);
-        }
-
-        path = segments;
-        return segments.Count > 0;
-    }
-
-    private static bool TryParseKeySegment(string value, out string segment)
-    {
-        segment = string.Empty;
-        if (value.Length >= 2 && value[0] == value[^1] && value[0] is '"' or '\'')
-        {
-            segment = UnquoteTomlKey(value);
-            return true;
-        }
-
-        if (value.Length == 0 || value.Any(static character =>
-                !(char.IsAsciiLetterOrDigit(character) || character is '_' or '-')))
-        {
-            return false;
-        }
-
-        segment = value;
-        return true;
-    }
-
-    private static bool TryParseTablePath(
-        LexedTomlLine line,
-        out IReadOnlyList<string> path)
-    {
-        path = Array.Empty<string>();
-        if (!line.CanStartStatement)
-        {
-            return false;
-        }
-
-        var trimmed = line.Text.Trim();
-        if (!trimmed.StartsWith("[", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var arrayTable = trimmed.StartsWith("[[", StringComparison.Ordinal);
-        var openingLength = arrayTable ? 2 : 1;
-        var closingToken = arrayTable ? "]]" : "]";
-        var closingIndex = trimmed.IndexOf(
-            closingToken,
-            openingLength,
-            StringComparison.Ordinal);
-        if (closingIndex <= openingLength)
-        {
-            return false;
-        }
-
-        var content = trimmed[openingLength..closingIndex];
-        var segments = new List<string>();
-        var current = new StringBuilder();
-        var quote = '\0';
-        var escaped = false;
-        foreach (var character in content)
-        {
-            if (escaped)
-            {
-                current.Append(character);
-                escaped = false;
-                continue;
-            }
-
-            if (quote == '"' && character == '\\')
-            {
-                escaped = true;
-                current.Append(character);
-                continue;
-            }
-
-            if (character is '"' or '\'')
-            {
-                if (quote == '\0')
-                {
-                    quote = character;
-                }
-                else if (quote == character)
-                {
-                    quote = '\0';
-                }
-                current.Append(character);
-                continue;
-            }
-
-            if (character == '.' && quote == '\0')
-            {
-                segments.Add(UnquoteTomlKey(current.ToString().Trim()));
-                current.Clear();
-                continue;
-            }
-
-            current.Append(character);
-        }
-
-        segments.Add(UnquoteTomlKey(current.ToString().Trim()));
-        if (segments.Any(static segment => segment.Length == 0))
-        {
-            return false;
-        }
-
-        path = segments;
-        return true;
-    }
-
-    private static string UnquoteTomlKey(string value)
-    {
-        if (value.Length >= 2 && value[0] == value[^1] && value[0] is '"' or '\'')
-        {
-            if (value[0] == '\'')
-            {
-                return value[1..^1];
-            }
-
-            try
-            {
-                return JsonSerializer.Deserialize<string>(value) ?? string.Empty;
-            }
-            catch (JsonException exception)
-            {
-                throw new InvalidDataException("The Codex configuration contains an invalid quoted TOML key.", exception);
-            }
-        }
-
-        return value;
-    }
-
-    private static string? TryParseTomlString(string rawValue)
-    {
-        var value = StripTomlComment(rawValue).Trim();
-        if (value.Length < 2 || value[0] != value[^1] || value[0] is not ('"' or '\''))
+        if (!root.TryGetValue(key, out var value))
         {
             return null;
         }
-
-        return UnquoteTomlKey(value);
-    }
-
-    private static string StripTomlComment(string value)
-    {
-        var quote = '\0';
-        var escaped = false;
-        for (var index = 0; index < value.Length; index++)
-        {
-            var character = value[index];
-            if (escaped)
-            {
-                escaped = false;
-                continue;
-            }
-
-            if (quote == '"' && character == '\\')
-            {
-                escaped = true;
-                continue;
-            }
-
-            if (character is '"' or '\'')
-            {
-                quote = quote == '\0' ? character : quote == character ? '\0' : quote;
-            }
-            else if (character == '#' && quote == '\0')
-            {
-                return value[..index];
-            }
-        }
-
-        return value;
-    }
-
-    private static List<LexedTomlLine> LexLines(string value)
-    {
-        var lines = SplitLines(value);
-        var result = new List<LexedTomlLine>(lines.Count);
-        var state = new TomlLexicalState();
-        foreach (var line in lines)
-        {
-            var canStartStatement = state.CanStartStatement;
-            result.Add(new LexedTomlLine(line, canStartStatement));
-            AdvanceLexicalState(line, state);
-        }
-
-        if (!state.CanStartStatement)
+        if (value is not TomlTable table)
         {
             throw new InvalidDataException(
-                "The Codex configuration contains an unterminated TOML value.");
+                $"The {description} {key} setting must be a TOML table.");
         }
 
-        return result;
+        return table;
     }
 
-    private static void AdvanceLexicalState(string line, TomlLexicalState state)
-    {
-        for (var index = 0; index < line.Length;)
-        {
-            if (state.InMultilineBasicString)
-            {
-                if (StartsWithDelimiter(line, index, "\"\"\"") && !IsEscaped(line, index))
-                {
-                    state.InMultilineBasicString = false;
-                    index += 3;
-                }
-                else
-                {
-                    index++;
-                }
-                continue;
-            }
-
-            if (state.InMultilineLiteralString)
-            {
-                if (StartsWithDelimiter(line, index, "'''"))
-                {
-                    state.InMultilineLiteralString = false;
-                    index += 3;
-                }
-                else
-                {
-                    index++;
-                }
-                continue;
-            }
-
-            var character = line[index];
-            if (character == '#')
-            {
-                return;
-            }
-
-            if (StartsWithDelimiter(line, index, "\"\"\""))
-            {
-                state.InMultilineBasicString = true;
-                index += 3;
-                continue;
-            }
-
-            if (StartsWithDelimiter(line, index, "'''"))
-            {
-                state.InMultilineLiteralString = true;
-                index += 3;
-                continue;
-            }
-
-            if (character == '"')
-            {
-                index = SkipBasicString(line, index + 1);
-                continue;
-            }
-
-            if (character == '\'')
-            {
-                var closingIndex = line.IndexOf('\'', index + 1);
-                if (closingIndex < 0)
-                {
-                    throw new InvalidDataException(
-                        "The Codex configuration contains an unterminated literal string.");
-                }
-                index = closingIndex + 1;
-                continue;
-            }
-
-            switch (character)
-            {
-                case '[':
-                    state.SquareBracketDepth++;
-                    break;
-                case ']':
-                    if (state.SquareBracketDepth == 0)
-                    {
-                        throw new InvalidDataException(
-                            "The Codex configuration contains an unmatched closing bracket.");
-                    }
-                    state.SquareBracketDepth--;
-                    break;
-                case '{':
-                    state.CurlyBracketDepth++;
-                    break;
-                case '}':
-                    if (state.CurlyBracketDepth == 0)
-                    {
-                        throw new InvalidDataException(
-                            "The Codex configuration contains an unmatched closing brace.");
-                    }
-                    state.CurlyBracketDepth--;
-                    break;
-            }
-
-            index++;
-        }
-    }
-
-    private static int SkipBasicString(string line, int index)
-    {
-        var escaped = false;
-        for (; index < line.Length; index++)
-        {
-            var character = line[index];
-            if (escaped)
-            {
-                escaped = false;
-                continue;
-            }
-
-            if (character == '\\')
-            {
-                escaped = true;
-            }
-            else if (character == '"')
-            {
-                return index + 1;
-            }
-        }
-
+    private static TomlTable GetRequiredTable(
+        TomlTable root,
+        string key,
+        string description) =>
+        GetOptionalTable(root, key, description) ??
         throw new InvalidDataException(
-            "The Codex configuration contains an unterminated basic string.");
-    }
+            $"The {description} is missing the {key} table.");
 
-    private static bool StartsWithDelimiter(string line, int index, string delimiter) =>
-        index + delimiter.Length <= line.Length &&
-        line.AsSpan(index, delimiter.Length).SequenceEqual(delimiter);
-
-    private static bool IsEscaped(string line, int index)
+    private static TomlTable? CloneOptionalTable(
+        TomlTable root,
+        string key,
+        string description)
     {
-        var backslashCount = 0;
-        for (var cursor = index - 1; cursor >= 0 && line[cursor] == '\\'; cursor--)
-        {
-            backslashCount++;
-        }
-
-        return backslashCount % 2 != 0;
+        var table = GetOptionalTable(root, key, description);
+        return table is null ? null : CloneTable(table);
     }
 
-    private static List<string> SplitLines(string value) => value
-        .Replace("\r\n", "\n", StringComparison.Ordinal)
-        .Replace('\r', '\n')
-        .Split('\n')
-        .ToList();
-
-    private static string DetectNewLine(string value) =>
-        value.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-
-    private static void AppendSeparated(List<string> lines, string content)
+    private static TomlTable CloneTable(TomlTable source)
     {
-        while (lines.Count > 0 && lines[^1].Length == 0)
+        var clone = new TomlTable();
+        foreach (var entry in source.OrderBy(
+                     static entry => entry.Key,
+                     StringComparer.Ordinal))
         {
-            lines.RemoveAt(lines.Count - 1);
+            clone[entry.Key] = CloneTomlValue(entry.Value);
         }
 
-        if (lines.Count > 0)
-        {
-            lines.Add(string.Empty);
-        }
-
-        var contentLines = SplitLines(content);
-        if (contentLines.Count > 0 && contentLines[^1].Length == 0)
-        {
-            contentLines.RemoveAt(contentLines.Count - 1);
-        }
-        lines.AddRange(contentLines);
+        return clone;
     }
 
-    private readonly record struct LexedTomlLine(string Text, bool CanStartStatement);
+    private static object CloneTomlValue(object value) =>
+        value switch
+        {
+            TomlTable table => CloneTable(table),
+            TomlArray array => CloneArray(array),
+            TomlTableArray tableArray => CloneTableArray(tableArray),
+            _ => value
+        };
 
-    private sealed class TomlLexicalState
+    private static TomlArray CloneArray(TomlArray source)
     {
-        public bool InMultilineBasicString { get; set; }
+        var clone = new TomlArray(source.Count);
+        foreach (var item in source)
+        {
+            if (item is null)
+            {
+                throw new InvalidDataException(
+                    "The Codex configuration contains an unsupported null TOML value.");
+            }
+            clone.Add(CloneTomlValue(item));
+        }
 
-        public bool InMultilineLiteralString { get; set; }
-
-        public int SquareBracketDepth { get; set; }
-
-        public int CurlyBracketDepth { get; set; }
-
-        public bool CanStartStatement => !InMultilineBasicString &&
-            !InMultilineLiteralString && SquareBracketDepth == 0 && CurlyBracketDepth == 0;
+        return clone;
     }
+
+    private static TomlTableArray CloneTableArray(TomlTableArray source)
+    {
+        var clone = new TomlTableArray();
+        foreach (var table in source)
+        {
+            clone.Add(CloneTable(table));
+        }
+
+        return clone;
+    }
+
+    private static DocumentSyntax ParseSyntax(string text, string description)
+    {
+        try
+        {
+            return SyntaxParser.ParseStrict(text, sourceName: "config.toml");
+        }
+        catch (TomlException)
+        {
+            throw new InvalidDataException(
+                $"The {description} contains invalid TOML.");
+        }
+    }
+
+    private static TomlTable ParseToml(string text, string description)
+    {
+        _ = ParseSyntax(text, description);
+        try
+        {
+            return TomlSerializer.Deserialize<TomlTable>(text) ??
+                throw new InvalidDataException(
+                    $"The {description} root must be a TOML table.");
+        }
+        catch (TomlException)
+        {
+            throw new InvalidDataException(
+                $"The {description} contains invalid TOML.");
+        }
+    }
+
+    private static string SerializeTable(TomlTable table, string newLine)
+    {
+        try
+        {
+            var options = TomlSerializerOptions.Default with
+            {
+                NewLine = newLine == "\r\n"
+                    ? TomlNewLineKind.CrLf
+                    : TomlNewLineKind.Lf
+            };
+            return TomlSerializer.Serialize(table, options);
+        }
+        catch (TomlException)
+        {
+            throw new InvalidDataException(
+                "The Codex configuration could not be serialized as TOML.");
+        }
+    }
+
+    private static void RemoveManagedNodes(DocumentSyntax document)
+    {
+        for (var index = document.KeyValues.ChildrenCount - 1; index >= 0; index--)
+        {
+            var keyValue = document.KeyValues.GetChild(index);
+            var path = GetKeyPath(keyValue?.Key);
+            var removeExactManagedKey =
+                path.Count == 1 && ManagedTopLevelKeySet.Contains(path[0]);
+            var removeManagedTableRoot =
+                path.Count > 0 &&
+                (path[0] == "features" || path[0] == "model_providers");
+            if (removeExactManagedKey || removeManagedTableRoot)
+            {
+                document.KeyValues.RemoveChildAt(index);
+            }
+        }
+
+        for (var index = document.Tables.ChildrenCount - 1; index >= 0; index--)
+        {
+            var table = document.Tables.GetChild(index);
+            var path = GetKeyPath(table?.Name);
+            if (path.Count > 0 &&
+                (path[0] == "features" || path[0] == "model_providers"))
+            {
+                document.Tables.RemoveChildAt(index);
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> GetKeyPath(KeySyntax? key)
+    {
+        if (key?.Key is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var path = new List<string>(1 + key.DotKeys.ChildrenCount)
+        {
+            GetKeySegment(key.Key)
+        };
+        foreach (var dotted in key.DotKeys)
+        {
+            if (dotted.Key is null)
+            {
+                return Array.Empty<string>();
+            }
+            path.Add(GetKeySegment(dotted.Key));
+        }
+
+        return path;
+    }
+
+    private static string GetKeySegment(BareKeyOrStringValueSyntax key) =>
+        key switch
+        {
+            BareKeySyntax bare => bare.Key?.Text ??
+                throw new InvalidDataException("The Codex configuration contains an invalid TOML key."),
+            StringValueSyntax text => text.Value ??
+                throw new InvalidDataException("The Codex configuration contains an invalid TOML key."),
+            _ => throw new InvalidDataException(
+                "The Codex configuration contains an unsupported TOML key.")
+        };
+
+    private static void MoveDocumentContents(
+        DocumentSyntax source,
+        DocumentSyntax destination)
+    {
+        if (source.KeyValues.ChildrenCount > 0 &&
+            destination.KeyValues.ChildrenCount > 0)
+        {
+            // A valid TOML file may end immediately after its last root value.
+            // Add a separator before appending the managed root values.
+            EnsureEndsWithNewLine(
+                destination.KeyValues.GetChild(destination.KeyValues.ChildrenCount - 1));
+        }
+
+        while (source.KeyValues.ChildrenCount > 0)
+        {
+            var child = source.KeyValues.GetChild(0) ??
+                throw new InvalidDataException(
+                    "The merged Codex configuration contains an invalid root setting.");
+            source.KeyValues.RemoveChildAt(0);
+            destination.KeyValues.Add(child);
+        }
+
+        if (source.Tables.ChildrenCount > 0)
+        {
+            EnsureDocumentEndsWithNewLine(destination);
+        }
+
+        while (source.Tables.ChildrenCount > 0)
+        {
+            var child = source.Tables.GetChild(0) ??
+                throw new InvalidDataException(
+                    "The merged Codex configuration contains an invalid table.");
+            source.Tables.RemoveChildAt(0);
+            destination.Tables.Add(child);
+        }
+    }
+
+    private static void EnsureDocumentEndsWithNewLine(DocumentSyntax document)
+    {
+        if (document.Tables.ChildrenCount > 0)
+        {
+            var table = document.Tables.GetChild(document.Tables.ChildrenCount - 1) ??
+                throw new InvalidDataException(
+                    "The Codex configuration contains an invalid table.");
+            if (table.Items.ChildrenCount > 0)
+            {
+                EnsureEndsWithNewLine(
+                    table.Items.GetChild(table.Items.ChildrenCount - 1));
+            }
+            else
+            {
+                table.EndOfLineToken = SyntaxFactory.NewLine();
+            }
+            return;
+        }
+
+        if (document.KeyValues.ChildrenCount > 0)
+        {
+            EnsureEndsWithNewLine(
+                document.KeyValues.GetChild(document.KeyValues.ChildrenCount - 1));
+        }
+    }
+
+    private static void EnsureEndsWithNewLine(KeyValueSyntax? keyValue)
+    {
+        if (keyValue is null)
+        {
+            throw new InvalidDataException(
+                "The Codex configuration contains an invalid setting.");
+        }
+        keyValue.EndOfLineToken = SyntaxFactory.NewLine();
+    }
+
+    private static bool SnapshotValuesEqual(
+        CodexConfigurationSnapshot left,
+        CodexConfigurationSnapshot right)
+    {
+        if (left.TopLevel.Count != right.TopLevel.Count)
+        {
+            return false;
+        }
+        foreach (var entry in left.TopLevel)
+        {
+            if (!right.TopLevel.TryGetValue(entry.Key, out var rightValue) ||
+                !string.Equals(entry.Value, rightValue, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return string.Equals(
+                left.ResponsesWebSocketsV2,
+                right.ResponsesWebSocketsV2,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                left.ModelProviderIdentifier,
+                right.ModelProviderIdentifier,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                left.ModelProviderSections,
+                right.ModelProviderSections,
+                StringComparison.Ordinal);
+    }
+
+    private static bool IsEmpty(CodexConfigurationSnapshot snapshot) =>
+        snapshot.TopLevel.Count == 0 &&
+        snapshot.ResponsesWebSocketsV2 is null &&
+        string.IsNullOrWhiteSpace(snapshot.ModelProviderSections);
+
+    private static byte[] SerializeSnapshot(CodexConfigurationSnapshot snapshot) =>
+        JsonSerializer.SerializeToUtf8Bytes(snapshot, SnapshotOptions);
 }

@@ -33,6 +33,8 @@ public interface IAuthenticationAdapter
 
 public sealed class CodexAuthenticationAdapter : IAuthenticationAdapter
 {
+    private const int SnapshotReadAttempts = 3;
+
     private static readonly IReadOnlyList<ProcessNameRule> Processes = Array.AsReadOnly<ProcessNameRule>(
     [
         ProcessNameRule.Exact("ChatGPT"),
@@ -73,7 +75,37 @@ public sealed class CodexAuthenticationAdapter : IAuthenticationAdapter
 
     public IReadOnlyList<ProcessNameRule> BlockingProcessRules => Processes;
 
-    public bool HasCurrentSnapshot => HasNonEmptyFile(AuthenticationFilePath);
+    public bool HasCurrentSnapshot
+    {
+        get
+        {
+            if (HasNonEmptyFile(AuthenticationFilePath))
+            {
+                return true;
+            }
+
+            if (!_manageApiConfiguration)
+            {
+                return false;
+            }
+
+            byte[]? configuration = null;
+            try
+            {
+                configuration = CodexManagedConfiguration.Capture(ConfigurationFilePath);
+                return CodexManagedConfiguration.HasManagedValues(configuration);
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                return false;
+            }
+            finally
+            {
+                ZeroIfPresent(configuration);
+            }
+        }
+    }
 
     public byte[] ReadSnapshot(bool allowIncomplete = false)
     {
@@ -82,31 +114,55 @@ public sealed class CodexAuthenticationAdapter : IAuthenticationAdapter
             return AuthenticationSnapshotFiles.ReadRequiredAuthenticationFile(AuthenticationFilePath);
         }
 
-        byte[]? authentication = null;
-        byte[]? configuration = null;
-        try
+        for (var attempt = 0; attempt < SnapshotReadAttempts; attempt++)
         {
-            authentication = AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile(AuthenticationFilePath);
-            if (authentication is null && !allowIncomplete)
+            byte[]? authenticationBefore = null;
+            byte[]? authenticationAfter = null;
+            byte[]? configurationBefore = null;
+            byte[]? configurationAfter = null;
+            try
             {
-                throw new FileNotFoundException(
-                    "The Codex authentication file does not exist.",
+                authenticationBefore = AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile(
                     AuthenticationFilePath);
+                configurationBefore = CodexManagedConfiguration.Capture(ConfigurationFilePath);
+                authenticationAfter = AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile(
+                    AuthenticationFilePath);
+                configurationAfter = CodexManagedConfiguration.Capture(ConfigurationFilePath);
+
+                if (!OptionalBytesEqual(authenticationBefore, authenticationAfter) ||
+                    !AuthenticationSnapshotFiles.BytesEqual(configurationBefore, configurationAfter))
+                {
+                    continue;
+                }
+
+                if (authenticationAfter is null &&
+                    !CodexManagedConfiguration.HasManagedValues(configurationAfter) &&
+                    !allowIncomplete)
+                {
+                    throw new FileNotFoundException(
+                        "Neither Codex credentials nor managed provider settings were found.",
+                        AuthenticationFilePath);
+                }
+
+                return AuthenticationSnapshotCodec.Encode(new ManagedAuthenticationSnapshot
+                {
+                    Provider = Provider,
+                    AuthenticationFileExists = authenticationAfter is not null,
+                    AuthenticationFileContents = authenticationAfter,
+                    ManagedConfiguration = configurationAfter
+                });
             }
-            configuration = CodexManagedConfiguration.Capture(ConfigurationFilePath);
-            return AuthenticationSnapshotCodec.Encode(new ManagedAuthenticationSnapshot
+            finally
             {
-                Provider = Provider,
-                AuthenticationFileExists = authentication is not null,
-                AuthenticationFileContents = authentication,
-                ManagedConfiguration = configuration
-            });
+                ZeroIfPresent(authenticationBefore);
+                ZeroIfPresent(authenticationAfter);
+                ZeroIfPresent(configurationBefore);
+                ZeroIfPresent(configurationAfter);
+            }
         }
-        finally
-        {
-            ZeroIfPresent(authentication);
-            ZeroIfPresent(configuration);
-        }
+
+        throw new IOException(
+            "The Codex credentials or provider settings changed while the account snapshot was being read. Try saving again.");
     }
 
     public void WriteSnapshot(IAtomicFileWriter atomicWriter, byte[] snapshotBytes, Guid transactionId)
@@ -163,19 +219,33 @@ public sealed class CodexAuthenticationAdapter : IAuthenticationAdapter
     }
 
     public bool SnapshotsEqual(byte[] left, byte[] right) =>
-        AuthenticationSnapshotComparison.AreEqual(Provider, left, right);
+        AuthenticationSnapshotComparison.AreEqual(
+            Provider,
+            left,
+            right,
+            CodexManagedConfiguration.SnapshotsEqual);
 
     public bool IsLegacySnapshot(byte[] snapshotBytes) =>
         !AuthenticationSnapshotComparison.IsManagedSnapshot(Provider, snapshotBytes);
 
     public bool IsRecognizedPartialSnapshot(byte[] source, byte[] target, byte[] current) =>
-        AuthenticationSnapshotComparison.IsRecognizedPartial(Provider, source, target, current);
+        AuthenticationSnapshotComparison.IsRecognizedPartial(
+            Provider,
+            source,
+            target,
+            current,
+            CodexManagedConfiguration.IsRecognizedPartial);
 
     public void DeleteOwnedTransactionFiles(IAtomicFileWriter atomicWriter, Guid transactionId) =>
         AuthenticationSnapshotComparison.DeleteOwnedTransactionFiles(
             atomicWriter,
             ManagedFilePaths,
             transactionId);
+
+    private static bool OptionalBytesEqual(byte[]? left, byte[]? right) =>
+        left is null
+            ? right is null
+            : right is not null && AuthenticationSnapshotFiles.BytesEqual(left, right);
 
     private static void EnsureProvider(ManagedAuthenticationSnapshot snapshot, AgentProvider provider)
     {

@@ -147,6 +147,9 @@ core and a WPF presentation layer.
   `review_model`, `model_reasoning_effort`, and `disable_response_storage`.
 - The selected active `model_providers` table and
   `features.responses_websockets_v2` are also managed.
+- Capture and apply use a complete TOML parser, so explicit tables, dotted keys,
+  and inline tables have the same meaning. The merged document is validated
+  before `auth.json` is changed.
 - `network_access`, `windows_wsl_setup_acknowledged`, `features.goals`,
   `cli_auth_credentials_store`, MCP, skills, sessions, and all other keys and
   tables remain live and are not part of a profile.

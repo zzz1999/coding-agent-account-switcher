@@ -121,6 +121,10 @@ that prove unrelated settings survive capture, apply, rollback, and recovery.
   `disable_response_storage`.
 - The table selected by `model_provider` under `model_providers` is managed as a
   unit, together with `features.responses_websockets_v2`.
+- The complete TOML document is parsed before capture and again after a merge.
+  Invalid, duplicate, or conflicting table definitions fail before credentials
+  are changed; equivalent explicit, dotted, and inline provider definitions are
+  normalized to the same encrypted snapshot.
 - `network_access`, `windows_wsl_setup_acknowledged`, `features.goals`,
   `cli_auth_credentials_store`, MCP, skills, sessions, and every other key or
   table are outside the whitelist and must remain unchanged.

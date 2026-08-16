@@ -64,6 +64,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
           Copy-Item -LiteralPath .\LICENSE -Destination .\artifacts\publish\LICENSE -Force
+          Copy-Item -LiteralPath .\THIRD-PARTY-NOTICES.md -Destination .\artifacts\publish\THIRD-PARTY-NOTICES.md -Force
           $publishedExecutablePath = '.\artifacts\publish\CodingAgentAccountSwitcher.exe'
           if (-not (Test-Path -LiteralPath $publishedExecutablePath -PathType Leaf)) {
             throw 'The expected portable executable was not created.'
@@ -270,16 +271,18 @@ jobs:
           INSTALLER_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-setup-win-x64.exe.sha256
           PORTABLE_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe
           PORTABLE_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe.sha256
+          THIRD_PARTY_NOTICES_PATH: .\THIRD-PARTY-NOTICES.md
         run: |
           $releaseTag = "v$env:APP_VERSION"
           $versionMarker = "<!-- coding-agent-account-switcher-version: $env:APP_VERSION -->"
-          $releaseNotes = "Automated Windows build for version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer, a portable executable, and SHA-256 checksums.`n`n$versionMarker"
+          $releaseNotes = "Automated Windows build for version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer, a portable executable, SHA-256 checksums, and third-party notices.`n`n$versionMarker"
 
           gh release create "$releaseTag" `
             "$env:INSTALLER_PATH" `
             "$env:INSTALLER_CHECKSUM_PATH" `
             "$env:PORTABLE_PATH" `
             "$env:PORTABLE_CHECKSUM_PATH" `
+            "$env:THIRD_PARTY_NOTICES_PATH" `
             --target "$env:GITHUB_SHA" `
             --title "$releaseTag" `
             --notes "$releaseNotes" `
