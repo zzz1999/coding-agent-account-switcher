@@ -409,6 +409,8 @@
                               Padding="34,22,34,22"
                               FocusVisualStyle="{x:Null}"
                               HorizontalContentAlignment="Stretch"
+                              PanningMode="VerticalFirst"
+                              Style="{StaticResource Style.ScrollViewer.OverlayIndicators}"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel MaxWidth="1280"
@@ -500,7 +502,10 @@
                         </Grid>
 
                         <Grid>
+                            <!-- A symmetric inset keeps the last column's rounded
+                                 stroke inside the viewport after fractional-DPI rounding. -->
                             <ItemsControl x:Name="AccountItems"
+                                          Margin="1,0"
                                           AlternationCount="2"
                                           ItemTemplate="{StaticResource AccountCardTemplate}">
                                 <ItemsControl.ItemContainerStyle>
@@ -674,6 +679,8 @@
                                TextWrapping="Wrap" />
                     <ScrollViewer MaxHeight="220"
                                   Margin="0,18,0,10"
+                                  PanningMode="VerticalFirst"
+                                  Style="{StaticResource Style.ScrollViewer.OverlayIndicators}"
                                   VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="BlockingProcessItems"
                                       ItemTemplate="{StaticResource ProcessRowTemplate}" />
@@ -929,6 +936,8 @@
             <ScrollViewer Padding="24"
                           HorizontalContentAlignment="Center"
                           VerticalContentAlignment="Center"
+                          PanningMode="VerticalFirst"
+                          Style="{StaticResource Style.ScrollViewer.OverlayIndicators}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
               <Border Width="540"

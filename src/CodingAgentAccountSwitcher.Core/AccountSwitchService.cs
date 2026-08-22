@@ -405,6 +405,7 @@ public sealed class AccountSwitchService
         byte[]? currentCredential = null;
         byte[]? sourceCredential = null;
         byte[]? latestCredential = null;
+        byte[]? installedCredential = null;
         SwitchTransactionJournal? journal = null;
         var journalWritten = false;
         var recoveryCredentialWritten = false;
@@ -600,6 +601,19 @@ public sealed class AccountSwitchService
                 _vault.AtomicWriter,
                 targetCredential,
                 journal.TransactionId);
+
+            // Do not report success if another process immediately rewrites an account
+            // file. Authentication bytes must match exactly; managed configuration is
+            // compared using the provider adapter's semantic rules.
+            installedCredential = adapter.ReadSnapshot(allowIncomplete: true);
+            if (!adapter.SnapshotsEqual(targetCredential, installedCredential))
+            {
+                throw new IOException(
+                    "The installed account files did not match the selected snapshot.");
+            }
+            CryptographicOperations.ZeroMemory(installedCredential);
+            installedCredential = null;
+
             _vault.WritePendingJournal(journal with { Phase = SwitchJournalPhase.TargetInstalled });
 
             _vault.WriteActiveProfile(new ActiveProfileState
@@ -762,6 +776,11 @@ public sealed class AccountSwitchService
             if (latestCredential is not null)
             {
                 CryptographicOperations.ZeroMemory(latestCredential);
+            }
+
+            if (installedCredential is not null)
+            {
+                CryptographicOperations.ZeroMemory(installedCredential);
             }
         }
     }

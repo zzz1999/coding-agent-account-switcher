@@ -35,13 +35,15 @@ están firmadas, por lo que Windows SmartScreen puede mostrar una advertencia.
 
 - Guarde perfiles personales, de trabajo y de sitios API con nombres claros.
 - Cambie cuentas de Codex, Claude Code y OpenCode con unos pocos clics.
-- Mantenga las direcciones, claves, proveedores y modelos API compatibles con el
+- Mantenga las direcciones, claves y rutas de proveedor API compatibles en el
   perfil correcto.
 - Cambie el nombre de un perfil con doble clic o elimine una instantánea local.
 - Vea una confirmación clara del perfil activo después del cambio.
 - Impida el cambio mientras las aplicaciones relacionadas estén abiertas.
 - Use cualquiera de los 12 idiomas integrados.
 - Conserve el tema claro u oscuro y el idioma entre inicios.
+- En la misma sesión de Windows, abrir la aplicación de nuevo restaura y trae al
+  frente la ventana existente en lugar de crear otra.
 - Inicie opcionalmente con Windows y compruebe actualizaciones de forma manual.
 
 Todo permanece en el equipo. La aplicación no incluye análisis ni telemetría.
@@ -50,7 +52,7 @@ Todo permanece en el equipo. La aplicación no incluye análisis ni telemetría.
 
 | Aplicación | Qué cambia | Qué permanece igual |
 | --- | --- | --- |
-| Codex | Inicio de sesión y ajustes compatibles de proveedor/modelo API | MCP, habilidades, sesiones, historial y otros ajustes |
+| Codex | Inicio de sesión y conexión del proveedor API seleccionado | Modelos, opciones de revisión/razonamiento, funciones, MCP, habilidades, sesiones, historial y otros ajustes |
 | Claude Code | Inicio de sesión y ajustes compatibles de dirección/clave API | Complementos, MCP, proyectos, historial y otros ajustes |
 | OpenCode | Inicio de sesión guardado y ajustes compatibles de proveedor/modelo | Configuración del proyecto y otros ajustes |
 
@@ -102,6 +104,9 @@ Lea [SECURITY.md](SECURITY.md) antes de comunicar un problema de seguridad.
 
 - El cierre de sesión del proveedor, la caducidad del token, SSO, MFA o las
   políticas de la organización pueden exigir un inicio de sesión normal.
+- Las conversaciones existentes de Codex quedan vinculadas al proveedor con el
+  que se crearon. Tras cambiar de proveedor, inicie una conversación nueva o
+  vuelva al proveedor original para continuar la anterior.
 - La aplicación no transfiere suscripciones ni garantiza una sesión permanente.
 - Actualmente solo se admiten Windows 10 y Windows 11 x64.
 

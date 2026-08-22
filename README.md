@@ -35,14 +35,16 @@ unsigned, so Windows SmartScreen may show a warning.
 
 - Save personal, work, and API-site profiles with clear names.
 - Switch Codex, Claude Code, and OpenCode account information in a few clicks.
-- Keep supported API endpoints, keys, providers, and model choices with the
-  correct profile.
+- Keep supported API endpoints, keys, and provider routing with the correct
+  profile.
 - Double-click a profile name to rename it, or delete a saved local snapshot.
 - See a clear confirmation showing which profile is active after a switch.
 - Block switching while related apps are still running.
 - Use English, Chinese, Spanish, French, German, Japanese, Korean, Portuguese,
   Russian, Arabic, or Hindi.
 - Keep your light/dark appearance and language choice between launches.
+- In the same Windows sign-in session, opening the app again restores and brings
+  forward the existing window instead of creating a duplicate.
 - Optionally start the app with Windows.
 - Check for updates manually from Settings.
 
@@ -52,7 +54,7 @@ Everything is local. The app has no analytics or telemetry.
 
 | App | What switches | What stays unchanged |
 | --- | --- | --- |
-| Codex | Login and supported API provider/model settings | MCP, skills, sessions, history, and unrelated settings |
+| Codex | Login and selected API provider connection settings | Models, review/reasoning options, features, MCP, skills, sessions, history, and other settings |
 | Claude Code | Login and supported API endpoint/key settings | Plugins, MCP, projects, history, and unrelated settings |
 | OpenCode | Saved login and supported provider/model settings | Project configuration and unrelated settings |
 
@@ -108,6 +110,9 @@ Read [SECURITY.md](SECURITY.md) before reporting a security issue.
 
 - Provider-side logout, token expiry, SSO, MFA, or organization policy can still
   require a normal sign-in.
+- Existing Codex conversations stay bound to the provider used when they were
+  created. After switching providers, start a new conversation, or switch back
+  to the original provider to continue it.
 - The app cannot move a subscription between accounts or make an account
   permanently signed in.
 - Only Windows 10 and Windows 11 x64 are currently supported.

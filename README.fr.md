@@ -36,12 +36,14 @@ un avertissement.
 
 - Enregistrez des profils personnels, professionnels et de sites API clairement nommés.
 - Changez de compte Codex, Claude Code ou OpenCode en quelques clics.
-- Conservez les adresses, clés, fournisseurs et modèles API compatibles avec le bon profil.
+- Conservez les adresses, clés et routages de fournisseur API compatibles avec le bon profil.
 - Renommez un profil par double-clic ou supprimez un instantané local.
 - Obtenez une confirmation claire du profil actif après le changement.
 - Bloquez le changement tant qu’une application associée est ouverte.
 - Utilisez l’une des 12 langues intégrées.
 - Conservez le thème clair ou sombre et la langue entre les lancements.
+- Dans une même session Windows, rouvrir l’application restaure et remet au
+  premier plan la fenêtre existante au lieu d’en créer une autre.
 - Démarrez facultativement avec Windows et recherchez les mises à jour manuellement.
 
 Tout reste sur votre ordinateur. L’application ne contient ni analyse ni télémétrie.
@@ -50,7 +52,7 @@ Tout reste sur votre ordinateur. L’application ne contient ni analyse ni tél�
 
 | Application | Éléments changés | Éléments conservés |
 | --- | --- | --- |
-| Codex | Connexion et réglages compatibles de fournisseur/modèle API | MCP, compétences, sessions, historique et autres réglages |
+| Codex | Connexion et configuration du fournisseur API sélectionné | Modèles, options de revue/raisonnement, fonctionnalités, MCP, compétences, sessions, historique et autres réglages |
 | Claude Code | Connexion et réglages compatibles d’adresse/clé API | Extensions, MCP, projets, historique et autres réglages |
 | OpenCode | Connexion enregistrée et réglages compatibles de fournisseur/modèle | Configuration de projet et autres réglages |
 
@@ -103,6 +105,9 @@ Lisez [SECURITY.md](SECURITY.md) avant de signaler un problème de sécurité.
 
 - Une déconnexion côté fournisseur, l’expiration du jeton, SSO, MFA ou les règles
   de l’organisation peuvent imposer une connexion normale.
+- Les conversations Codex existantes restent liées au fournisseur utilisé lors
+  de leur création. Après un changement de fournisseur, démarrez une nouvelle
+  conversation ou revenez au fournisseur d’origine pour poursuivre l’ancienne.
 - L’application ne transfère pas les abonnements et ne garantit pas une connexion permanente.
 - Seuls Windows 10 et Windows 11 x64 sont actuellement pris en charge.
 

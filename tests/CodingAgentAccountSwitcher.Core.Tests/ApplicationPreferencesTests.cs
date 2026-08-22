@@ -83,7 +83,7 @@ public sealed class ApplicationPreferencesTests
 
         var catalogs = LocalizationCatalog.Create();
         Assert.Equal(expectedLanguages.Length, catalogs.Count);
-        Assert.Equal(161, catalogs["en-US"].Count);
+        Assert.Equal(162, catalogs["en-US"].Count);
         foreach (var language in expectedLanguages)
         {
             Assert.Equal(catalogs["en-US"].Keys.Order(), catalogs[language].Keys.Order());
@@ -268,6 +268,28 @@ public sealed class ApplicationPreferencesTests
         bool expected)
     {
         Assert.Equal(expected, MainWindow.ShouldRememberDialogFocus(currentVisibility));
+    }
+
+    [Theory]
+    [InlineData(1, 0, 100, 0, true)]
+    [InlineData(-1, 0, 100, 0, true)]
+    [InlineData(0, 1, 0, 100, true)]
+    [InlineData(0, 0, 100, 0, false)]
+    [InlineData(1, 0, 0, 0, false)]
+    public void TransientScrollIndicatorAppearsOnlyForAnActualScrollableOffsetChange(
+        double verticalChange,
+        double horizontalChange,
+        double scrollableHeight,
+        double scrollableWidth,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            AutoHideScrollBarBehavior.ShouldRevealIndicator(
+                verticalChange,
+                horizontalChange,
+                scrollableHeight,
+                scrollableWidth));
     }
 
     [Theory]

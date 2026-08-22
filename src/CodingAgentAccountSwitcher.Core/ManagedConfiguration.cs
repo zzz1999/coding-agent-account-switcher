@@ -528,6 +528,9 @@ internal sealed record CodexConfigurationSnapshot
 {
     public Dictionary<string, string> TopLevel { get; init; } = new(StringComparer.Ordinal);
 
+    // Kept only so profiles created before the provider-only snapshot format
+    // can still be read.
+    // New snapshots never capture or restore this user preference.
     public string? ResponsesWebSocketsV2 { get; init; }
 
     public string? ModelProviderIdentifier { get; init; }
@@ -541,6 +544,13 @@ internal static class CodexManagedConfiguration
 
     private static readonly string[] ManagedTopLevelKeys =
     [
+        "model_provider"
+    ];
+
+    // Older releases stored these fields in the managed snapshot. Accept and
+    // validate them during migration, but deliberately ignore them when restoring.
+    private static readonly string[] RecognizedSnapshotTopLevelKeys =
+    [
         "model_provider",
         "openai_base_url",
         "model",
@@ -551,6 +561,9 @@ internal static class CodexManagedConfiguration
 
     private static readonly HashSet<string> ManagedTopLevelKeySet =
         new(ManagedTopLevelKeys, StringComparer.Ordinal);
+
+    private static readonly HashSet<string> RecognizedSnapshotTopLevelKeySet =
+        new(RecognizedSnapshotTopLevelKeys, StringComparer.Ordinal);
 
     private static readonly JsonSerializerOptions SnapshotOptions =
         new(JsonSerializerDefaults.Web);
@@ -581,24 +594,10 @@ internal static class CodexManagedConfiguration
 
             var providerIdentifier = GetProviderIdentifier(root, "Codex configuration");
             var providerSections = CaptureProviderSections(root, providerIdentifier);
-            string? responsesWebSocketsV2 = null;
-            var features = GetOptionalTable(root, "features", "Codex configuration");
-            if (features is not null &&
-                features.TryGetValue(ResponsesWebSocketsV2Key, out var responsesValue))
-            {
-                if (responsesValue is not bool enabled)
-                {
-                    throw new InvalidDataException(
-                        "The Codex features.responses_websockets_v2 setting must be a TOML boolean.");
-                }
-
-                responsesWebSocketsV2 = enabled ? "true" : "false";
-            }
 
             return SerializeSnapshot(new CodexConfigurationSnapshot
             {
                 TopLevel = topLevel,
-                ResponsesWebSocketsV2 = responsesWebSocketsV2,
                 ModelProviderIdentifier = providerIdentifier,
                 ModelProviderSections = providerSections
             });
@@ -703,22 +702,6 @@ internal static class CodexManagedConfiguration
             fragment[key] = ParseManagedTopLevelValue(key, rawValue);
         }
 
-        var features = CloneOptionalTable(
-            sourceRoot,
-            "features",
-            "Codex configuration");
-        features?.Remove(ResponsesWebSocketsV2Key);
-        if (captured.ResponsesWebSocketsV2 is not null)
-        {
-            features ??= new TomlTable();
-            features[ResponsesWebSocketsV2Key] =
-                ParseBooleanValue(captured.ResponsesWebSocketsV2);
-        }
-        if (features is { Count: > 0 })
-        {
-            fragment["features"] = features;
-        }
-
         var providers = CloneOptionalTable(
             sourceRoot,
             "model_providers",
@@ -771,7 +754,7 @@ internal static class CodexManagedConfiguration
         var normalizedTopLevel = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var entry in snapshot.TopLevel)
         {
-            if (!ManagedTopLevelKeySet.Contains(entry.Key) ||
+            if (!RecognizedSnapshotTopLevelKeySet.Contains(entry.Key) ||
                 string.IsNullOrWhiteSpace(entry.Value))
             {
                 throw new InvalidDataException(
@@ -779,7 +762,10 @@ internal static class CodexManagedConfiguration
             }
 
             var value = ParseManagedTopLevelValue(entry.Key, entry.Value);
-            normalizedTopLevel[entry.Key] = SerializeValue(value);
+            if (ManagedTopLevelKeySet.Contains(entry.Key))
+            {
+                normalizedTopLevel[entry.Key] = SerializeValue(value);
+            }
         }
 
         var providerIdentifier = normalizedTopLevel.TryGetValue(
@@ -796,13 +782,11 @@ internal static class CodexManagedConfiguration
                 "The saved Codex configuration snapshot has inconsistent provider routing.");
         }
 
-        string? responsesWebSocketsV2 = null;
+        // Validate the legacy field before dropping it so malformed saved data is
+        // still rejected instead of silently accepted.
         if (snapshot.ResponsesWebSocketsV2 is not null)
         {
-            responsesWebSocketsV2 =
-                ParseBooleanValue(snapshot.ResponsesWebSocketsV2)
-                    ? "true"
-                    : "false";
+            _ = ParseBooleanValue(snapshot.ResponsesWebSocketsV2);
         }
 
         var providerSections = NormalizeProviderSections(
@@ -811,7 +795,6 @@ internal static class CodexManagedConfiguration
         return new CodexConfigurationSnapshot
         {
             TopLevel = normalizedTopLevel,
-            ResponsesWebSocketsV2 = responsesWebSocketsV2,
             ModelProviderIdentifier = providerIdentifier,
             ModelProviderSections = providerSections
         };
@@ -1166,7 +1149,7 @@ internal static class CodexManagedConfiguration
                 path.Count == 1 && ManagedTopLevelKeySet.Contains(path[0]);
             var removeManagedTableRoot =
                 path.Count > 0 &&
-                (path[0] == "features" || path[0] == "model_providers");
+                path[0] == "model_providers";
             if (removeExactManagedKey || removeManagedTableRoot)
             {
                 document.KeyValues.RemoveChildAt(index);
@@ -1178,7 +1161,7 @@ internal static class CodexManagedConfiguration
             var table = document.Tables.GetChild(index);
             var path = GetKeyPath(table?.Name);
             if (path.Count > 0 &&
-                (path[0] == "features" || path[0] == "model_providers"))
+                path[0] == "model_providers")
             {
                 document.Tables.RemoveChildAt(index);
             }

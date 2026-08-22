@@ -41,6 +41,11 @@ core and a WPF presentation layer.
   Per-Monitor V2 DPI aware; Windows 11 uses native DWM outer corners, while the
   Windows 10 fallback keeps an opaque shell inside a per-pixel-alpha window so
   only the antialiased corner pixels are transparent.
+- **Single-instance coordinator**: uses session-local named synchronization
+  objects scoped to the current Windows identity. The first interactive launch
+  owns the primary window; a later launch signals it to show, restore, activate,
+  and focus that window, then exits without creating another one. Non-UI cleanup
+  mode runs before this coordination.
 - **Localization catalog**: supplies every fixed interface string for the
   supported cultures and can refresh the active window without restarting the
   application. Arabic also switches the application shell to right-to-left
@@ -64,8 +69,9 @@ core and a WPF presentation layer.
 
 ## Invariants
 
-1. Provider authentication contents are opaque bytes. Managed configuration
-   values are treated as credentials and are never displayed or logged.
+1. Provider authentication contents are opaque bytes and are restored by exact
+   whole-file replacement or deletion. Managed configuration values are treated
+   as credentials and are never displayed or logged.
 2. Only the explicit provider whitelist is captured and merged. Every unrelated
    configuration value remains semantically unchanged. Byte-for-byte formatting
    and comment preservation are not invariants when a file is reserialized.
@@ -103,9 +109,11 @@ core and a WPF presentation layer.
     a non-UI cleanup mode that removes the startup value only when the raw type
     and command exactly match the installed executable.
 14. Credential-only Codex and Claude Code blobs written by older releases remain
-    readable as credentials plus an empty managed API configuration. Activating
-    one clears currently managed API-route and model fields. An active legacy
-    source is upgraded to the composite format when switched away from.
+    readable as credentials plus an empty managed API configuration. For Codex,
+    activating one clears the current `model_provider` selection and its active
+    provider table while preserving dormant tables and all unrelated settings.
+    An active legacy source is upgraded to the composite format when switched
+    away from.
 15. A multi-file interruption may leave separate authentication absent, but
     cannot pair one profile's credentials with another profile's endpoint.
 16. An OpenCode `/connect` authentication-only snapshot is valid and does not
@@ -134,25 +142,39 @@ core and a WPF presentation layer.
     format `<!-- coding-agent-account-switcher-version: 1.0.N -->`. A new
     Release is published for each successful push build; afterward, uploaded
     assets are removed from older Releases while their records and tags remain.
+23. Interactive startup permits one primary window for the current Windows
+    identity in the current login session. A secondary launch signals the
+    primary instance to show, restore, activate, and focus its existing window,
+    then exits successfully. Non-UI startup-registration cleanup is not blocked
+    by the interactive single-instance coordinator.
 
 ## Provider contracts
 
 ### Codex
 
-- Live authentication: `%USERPROFILE%\.codex\auth.json`
+- Live authentication: `%USERPROFILE%\.codex\auth.json`, captured as opaque
+  bytes and restored by exact whole-file replacement or deletion. It is never
+  parsed or field-merged.
 - Managed configuration: `%USERPROFILE%\.codex\config.toml`
 - `CODEX_HOME`, when explicitly set, changes both paths' root.
-- Required credential backend: `cli_auth_credentials_store = "file"`
-- Managed top-level keys: `model_provider`, `openai_base_url`, `model`,
-  `review_model`, `model_reasoning_effort`, and `disable_response_storage`.
-- The selected active `model_providers` table and
-  `features.responses_websockets_v2` are also managed.
+- The only managed top-level key is `model_provider`.
+- When selected, the matching `model_providers.<id>` table is captured and
+  applied as one whole-table unit. Apply removes the previously active provider
+  table, installs the target active table, and preserves all other dormant
+  provider tables. A target without `model_provider` removes the current
+  selection and its active table only.
 - Capture and apply use a complete TOML parser, so explicit tables, dotted keys,
   and inline tables have the same meaning. The merged document is validated
   before `auth.json` is changed.
-- `network_access`, `windows_wsl_setup_acknowledged`, `features.goals`,
-  `cli_auth_credentials_store`, MCP, skills, sessions, and all other keys and
-  tables remain live and are not part of a profile.
+- `openai_base_url`, `model`, `review_model`, `model_reasoning_effort`,
+  `disable_response_storage`, every `features` value, `network_access`,
+  `windows_wsl_setup_acknowledged`, `cli_auth_credentials_store`, MCP, skills,
+  sessions, history, and all other keys and tables remain live and are not part
+  of a profile.
+- Codex conversations can retain the provider identifier used when they were
+  created. Removing that active provider during an account switch can prevent an
+  existing conversation from resuming; the user must start a new conversation
+  or switch back to the original provider profile.
 
 ### Claude Code
 
@@ -211,10 +233,9 @@ core and a WPF presentation layer.
   after a switch.
 - Blocking process rules include both `opencode` and `opencode-cli`.
 
-`disable_response_storage`, `features.responses_websockets_v2`, and
-`CLAUDE_CODE_ATTRIBUTION_HEADER` are compatibility fields retained for existing
-API-site profiles; they are not evidence that every current upstream release
-documents those names.
+`CLAUDE_CODE_ATTRIBUTION_HEADER` is a compatibility field retained for existing
+Claude Code API-site profiles; it is not evidence that every current upstream
+release documents that name.
 
 ## Account identity
 

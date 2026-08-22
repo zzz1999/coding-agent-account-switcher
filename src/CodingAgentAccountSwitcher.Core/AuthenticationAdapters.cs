@@ -205,7 +205,7 @@ public sealed class CodexAuthenticationAdapter : IAuthenticationAdapter
                 ZeroIfPresent(merged);
             }
 
-            AuthenticationSnapshotFiles.InstallAuthenticationFile(
+            AuthenticationSnapshotFiles.ReplaceAuthenticationFile(
                 atomicWriter,
                 AuthenticationFilePath,
                 snapshot.AuthenticationFileExists,
@@ -430,7 +430,7 @@ public sealed class ClaudeCodeAuthenticationAdapter : IAuthenticationAdapter
                 ZeroIfPresent(merged);
             }
 
-            AuthenticationSnapshotFiles.InstallAuthenticationFile(
+            AuthenticationSnapshotFiles.ReplaceAuthenticationFile(
                 atomicWriter,
                 AuthenticationFilePath,
                 snapshot.AuthenticationFileExists,
@@ -712,7 +712,7 @@ public sealed class OpenCodeAuthenticationAdapter : IAuthenticationAdapter
                 OpenCodeManagedConfiguration.ZeroWrites(writes);
             }
 
-            AuthenticationSnapshotFiles.InstallAuthenticationFile(
+            AuthenticationSnapshotFiles.ReplaceAuthenticationFile(
                 atomicWriter,
                 AuthenticationFilePath,
                 snapshot.AuthenticationFileExists,

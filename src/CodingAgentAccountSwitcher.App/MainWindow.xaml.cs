@@ -936,7 +936,7 @@ public partial class MainWindow : Window
                     SetStatus(T("Status.NowActive", activeDisplayName, ProviderDisplayName(provider)),
                         StatusTone.Success);
                 }
-                ShowSwitchSuccessDialog(activeDisplayName);
+                ShowSwitchSuccessDialog(provider, activeDisplayName);
                 break;
             case AccountOperationStatus.AlreadyActive:
                 CloseProcessDialog();
@@ -1172,9 +1172,15 @@ public partial class MainWindow : Window
         CloseSwitchSuccessButton.IsEnabled = !isBusy;
     }
 
-    private void ShowSwitchSuccessDialog(string displayName)
+    private void ShowSwitchSuccessDialog(AgentProvider provider, string displayName)
     {
-        SwitchSuccessMessage.Text = T("SwitchSuccess.Message", displayName);
+        var message = T("SwitchSuccess.Message", displayName);
+        if (provider == AgentProvider.Codex)
+        {
+            message = $"{message}{Environment.NewLine}{Environment.NewLine}{T("SwitchSuccess.CodexProviderNotice")}";
+        }
+
+        SwitchSuccessMessage.Text = message;
         RememberDialogFocusIfOpening(SwitchSuccessDialogOverlay);
         SwitchSuccessDialogOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => Keyboard.Focus(CloseSwitchSuccessButton));

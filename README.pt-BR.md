@@ -35,12 +35,14 @@ atuais não são assinados, portanto o Windows SmartScreen pode exibir um aviso.
 
 - Salve perfis pessoais, profissionais e de sites de API com nomes claros.
 - Troque contas do Codex, Claude Code e OpenCode com poucos cliques.
-- Mantenha endereços, chaves, provedores e modelos de API compatíveis no perfil correto.
+- Mantenha endereços, chaves e roteamento de provedor de API compatíveis no perfil correto.
 - Renomeie um perfil com dois cliques ou exclua um snapshot local.
 - Veja uma confirmação clara do perfil ativo após a troca.
 - Bloqueie a troca enquanto aplicativos relacionados estiverem abertos.
 - Use um dos 12 idiomas integrados.
 - Mantenha o tema claro/escuro e o idioma entre execuções.
+- Na mesma sessão do Windows, abrir o aplicativo novamente restaura e traz para
+  frente a janela existente em vez de criar outra.
 - Inicie opcionalmente com o Windows e verifique atualizações manualmente.
 
 Tudo permanece no computador. O aplicativo não possui análise nem telemetria.
@@ -49,7 +51,7 @@ Tudo permanece no computador. O aplicativo não possui análise nem telemetria.
 
 | Aplicativo | O que é trocado | O que permanece igual |
 | --- | --- | --- |
-| Codex | Login e configurações compatíveis de provedor/modelo de API | MCP, skills, sessões, histórico e outras configurações |
+| Codex | Login e conexão do provedor de API selecionado | Modelos, opções de revisão/raciocínio, recursos, MCP, skills, sessões, histórico e outras configurações |
 | Claude Code | Login e configurações compatíveis de endereço/chave de API | Plugins, MCP, projetos, histórico e outras configurações |
 | OpenCode | Login salvo e configurações compatíveis de provedor/modelo | Configuração do projeto e outras configurações |
 
@@ -100,6 +102,9 @@ Leia [SECURITY.md](SECURITY.md) antes de relatar um problema de segurança.
 
 - Logout do provedor, expiração do token, SSO, MFA ou políticas da organização
   ainda podem exigir um login normal.
+- Conversas existentes do Codex permanecem vinculadas ao provedor usado quando
+  foram criadas. Após trocar de provedor, inicie uma nova conversa ou volte ao
+  provedor original para continuar a conversa anterior.
 - O aplicativo não transfere assinaturas nem garante uma sessão permanente.
 - Atualmente, apenas Windows 10 e Windows 11 x64 são compatíveis.
 

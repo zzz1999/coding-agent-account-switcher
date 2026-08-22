@@ -36,12 +36,14 @@ daher eine Warnung anzeigen.
 
 - Speichern Sie persönliche, geschäftliche und API-Dienstprofile mit klaren Namen.
 - Wechseln Sie Codex-, Claude Code- und OpenCode-Konten mit wenigen Klicks.
-- Behalten Sie unterstützte API-Adressen, Schlüssel, Anbieter und Modelle beim richtigen Profil.
+- Behalten Sie unterstützte API-Adressen, Schlüssel und Anbieter-Routing beim richtigen Profil.
 - Benennen Sie ein Profil per Doppelklick um oder löschen Sie eine lokale Momentaufnahme.
 - Sehen Sie nach dem Wechsel eine klare Bestätigung des aktiven Profils.
 - Verhindern Sie den Wechsel, solange zugehörige Apps geöffnet sind.
 - Verwenden Sie eine von 12 integrierten Sprachen.
 - Behalten Sie helles/dunkles Design und Sprache zwischen den Starts.
+- Wenn Sie die App in derselben Windows-Sitzung erneut öffnen, wird das vorhandene
+  Fenster wiederhergestellt und nach vorn geholt, statt ein zweites zu öffnen.
 - Starten Sie optional mit Windows und suchen Sie manuell nach Updates.
 
 Alle Daten bleiben auf Ihrem Computer. Die App enthält keine Analyse oder Telemetrie.
@@ -50,7 +52,7 @@ Alle Daten bleiben auf Ihrem Computer. Die App enthält keine Analyse oder Telem
 
 | App | Was gewechselt wird | Was unverändert bleibt |
 | --- | --- | --- |
-| Codex | Anmeldung und unterstützte API-Anbieter-/Modelleinstellungen | MCP, Skills, Sitzungen, Verlauf und andere Einstellungen |
+| Codex | Anmeldung und Verbindungseinstellungen des gewählten API-Anbieters | Modelle, Prüf-/Reasoning-Optionen, Features, MCP, Skills, Sitzungen, Verlauf und andere Einstellungen |
 | Claude Code | Anmeldung und unterstützte API-Adress-/Schlüsseleinstellungen | Plugins, MCP, Projekte, Verlauf und andere Einstellungen |
 | OpenCode | Gespeicherte Anmeldung und unterstützte Anbieter-/Modelleinstellungen | Projektkonfiguration und andere Einstellungen |
 
@@ -102,6 +104,9 @@ Lesen Sie [SECURITY.md](SECURITY.md), bevor Sie ein Sicherheitsproblem melden.
 
 - Abmeldung beim Anbieter, Token-Ablauf, SSO, MFA oder Organisationsrichtlinien
   können eine normale Anmeldung erforderlich machen.
+- Bestehende Codex-Unterhaltungen bleiben an den Anbieter gebunden, mit dem sie
+  erstellt wurden. Starten Sie nach einem Anbieterwechsel eine neue Unterhaltung
+  oder wechseln Sie zum ursprünglichen Anbieter zurück, um sie fortzusetzen.
 - Die App überträgt keine Abonnements und garantiert keine dauerhafte Anmeldung.
 - Derzeit werden nur Windows 10 und Windows 11 x64 unterstützt.
 

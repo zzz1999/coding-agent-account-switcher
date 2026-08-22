@@ -22,9 +22,11 @@ storage and cross-user access, not to replace endpoint security.
 
 ## Credential-handling requirements
 
-- Never parse, decode, normalize, or log a provider authentication file.
-  Selective configuration merging may parse only the managed fields documented
-  in the provider contracts below.
+- Never parse, decode, normalize, or log a provider authentication file. Capture
+  it as opaque bytes and restore it by replacing or deleting the entire file.
+  Selective configuration merging may parse provider configuration documents,
+  but may capture or change only the managed scope documented in the provider
+  contracts below.
 - Treat managed configuration values as credentials because API keys and
   authorization tokens can appear there. Never display or log them. Keep
   credential data in byte buffers and clear buffers after use when practical.
@@ -34,8 +36,10 @@ storage and cross-user access, not to replace endpoint security.
   while the related provider is open. It must not trigger transaction recovery
   or write provider files as a side effect. Block switching and recovery when a
   related process is running or process state cannot be checked reliably.
-- Merge only the managed provider fields. Preserve every unrelated value and
-  never replace a whole provider configuration with a profile template.
+- Merge only the explicitly managed provider scope and preserve every unrelated
+  value. Codex's selected `model_providers.<id>` table is intentionally managed
+  as one whole-table unit; this never authorizes replacing the whole
+  `config.toml` document with a profile template.
 - Preservation is semantic, not byte-for-byte: a parser may normalize JSON or
   TOML formatting or comments while keeping unrelated values unchanged.
 - Write each replacement file in its destination directory, flush it, and use
@@ -115,19 +119,25 @@ that prove unrelated settings survive capture, apply, rollback, and recovery.
 
 ### Codex
 
-- Authentication file: `auth.json` in the active Codex root.
-- Selectively managed top-level `config.toml` keys: `model_provider`,
-  `openai_base_url`, `model`, `review_model`, `model_reasoning_effort`, and
-  `disable_response_storage`.
-- The table selected by `model_provider` under `model_providers` is managed as a
-  unit, together with `features.responses_websockets_v2`.
+- Authentication file: `auth.json` in the active Codex root. It is captured as
+  opaque bytes and restored by exact whole-file replacement or deletion; it is
+  never field-merged.
+- The only selectively managed top-level `config.toml` key is `model_provider`.
+- When `model_provider` is present, its currently selected
+  `model_providers.<id>` table is captured and applied as one whole-table unit.
+  Applying a profile removes the previously active provider table, writes the
+  target active provider table, and preserves every other dormant provider
+  table. A target without `model_provider` removes only the live selection and
+  its previously active table.
 - The complete TOML document is parsed before capture and again after a merge.
   Invalid, duplicate, or conflicting table definitions fail before credentials
   are changed; equivalent explicit, dotted, and inline provider definitions are
   normalized to the same encrypted snapshot.
-- `network_access`, `windows_wsl_setup_acknowledged`, `features.goals`,
-  `cli_auth_credentials_store`, MCP, skills, sessions, and every other key or
-  table are outside the whitelist and must remain unchanged.
+- `openai_base_url`, `model`, `review_model`, `model_reasoning_effort`,
+  `disable_response_storage`, every `features` value, `network_access`,
+  `windows_wsl_setup_acknowledged`, `cli_auth_credentials_store`, MCP, skills,
+  sessions, and every other key or table are outside the whitelist and must
+  remain unchanged.
 
 ### Claude Code
 
@@ -180,21 +190,22 @@ that prove unrelated settings survive capture, apply, rollback, and recovery.
   must be disclosed to users as an external precedence limitation.
 - The process guard covers both `opencode` and `opencode-cli`.
 
-`disable_response_storage`, `features.responses_websockets_v2`, and
-`CLAUDE_CODE_ATTRIBUTION_HEADER` are compatibility fields for existing API-site
-profiles. Their inclusion does not broaden the whitelist to similarly named or
-unknown values.
+`CLAUDE_CODE_ATTRIBUTION_HEADER` is a compatibility field for existing Claude
+Code API-site profiles. Its inclusion does not broaden the whitelist to
+similarly named or unknown values.
 
 ## Legacy snapshot behavior
 
 - Interpret a raw credential-only Codex or Claude Code profile as its opaque
   credentials plus an empty managed API configuration.
-- Activating that legacy target must clear all currently managed API-route and
-  model fields. Leaving them in place could send the legacy credentials to a
-  third-party endpoint selected by the previous profile.
-- Tell the user to configure the intended model/API settings and recapture the
-  profile after activation. When an active legacy source is switched away from,
-  save it back in the composite format.
+- Activating that legacy target must clear the currently managed API route. For
+  Codex, that means `model_provider` and its active provider table; dormant
+  provider tables and every unrelated setting remain unchanged. Leaving the
+  active route in place could send the legacy credentials to a third-party
+  endpoint selected by the previous profile.
+- Tell the user to configure the intended API provider and recapture the profile
+  after activation. When an active legacy source is switched away from, save it
+  back in the composite format.
 - An OpenCode snapshot containing only its separate `/connect` `auth.json` is
   valid. Applying it must clear existing managed fields but must not create an
   empty global `opencode.jsonc`.

@@ -384,6 +384,33 @@ public sealed class AccountSwitchServiceTests
     }
 
     [Fact]
+    public async Task AuthenticationRewrittenImmediatelyAfterCommitIsDetectedAndRolledBack()
+    {
+        using var temporary = new TemporaryDirectory();
+        var adapter = CreateCodexAdapter(temporary.Path, out var authenticationPath, out _);
+        byte[] source = [1, 2, 3, 4];
+        byte[] target = [5, 6, 7, 8];
+        File.WriteAllBytes(authenticationPath, source);
+
+        var writer = new CorruptAfterAuthenticationCommitWriter(authenticationPath);
+        var vault = new AuthenticationProfileVault(
+            System.IO.Path.Combine(temporary.Path, "vault"),
+            atomicWriter: writer);
+        var service = CreateService(vault, ProcessInspectionResult.Clear);
+        var sourceCapture = await service.CaptureCurrentLoginAsync(adapter, "Personal");
+        var targetProfile = vault.CreateProfile(AgentProvider.Codex, "Work", target);
+        writer.Enabled = true;
+
+        var result = await service.SwitchAsync(adapter, targetProfile.ProfileId);
+
+        Assert.Equal(AccountOperationStatus.Failed, result.Status);
+        Assert.True(result.RolledBack);
+        Assert.Equal(source, File.ReadAllBytes(authenticationPath));
+        Assert.Equal(sourceCapture.Profile!.ProfileId, vault.GetActiveProfile(AgentProvider.Codex)!.ProfileId);
+        Assert.Null(vault.GetPendingJournal(AgentProvider.Codex));
+    }
+
+    [Fact]
     public async Task InterruptedRollbackIsRecoveredFromJournalOnNextStart()
     {
         using var temporary = new TemporaryDirectory();
@@ -940,6 +967,36 @@ public sealed class AccountSwitchServiceTests
             {
                 _hasThrown = true;
                 throw new IOException("Injected post-commit authentication write failure.");
+            }
+        }
+
+        public void DeleteOwnedTransactionFiles(string destinationPath, Guid transactionId) =>
+            _inner.DeleteOwnedTransactionFiles(destinationPath, transactionId);
+
+        public void DeleteFile(string destinationPath) => _inner.DeleteFile(destinationPath);
+    }
+
+    private sealed class CorruptAfterAuthenticationCommitWriter : IAtomicFileWriter
+    {
+        private readonly AtomicFileWriter _inner = new();
+        private readonly string _authenticationPath;
+        private bool _hasCorrupted;
+
+        public CorruptAfterAuthenticationCommitWriter(string authenticationPath)
+        {
+            _authenticationPath = System.IO.Path.GetFullPath(authenticationPath);
+        }
+
+        public bool Enabled { get; set; }
+
+        public void WriteAllBytes(string destinationPath, byte[] contents, Guid? transactionId = null)
+        {
+            _inner.WriteAllBytes(destinationPath, contents, transactionId);
+            if (Enabled && !_hasCorrupted &&
+                System.IO.Path.GetFullPath(destinationPath) == _authenticationPath)
+            {
+                _hasCorrupted = true;
+                File.WriteAllBytes(destinationPath, [0xFF]);
             }
         }
 

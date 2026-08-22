@@ -167,7 +167,7 @@ internal static class AuthenticationSnapshotFiles
         ReadOptionalAuthenticationFile(path) ??
         throw new FileNotFoundException("The authentication file does not exist.", path);
 
-    internal static void InstallAuthenticationFile(
+    internal static void ReplaceAuthenticationFile(
         IAtomicFileWriter atomicWriter,
         string path,
         bool exists,
@@ -176,6 +176,8 @@ internal static class AuthenticationSnapshotFiles
     {
         if (exists)
         {
+            // Authentication files are opaque account credentials. Always replace the
+            // complete file; never parse, merge, or preserve fields from the live account.
             atomicWriter.WriteAllBytes(path, contents!, transactionId);
         }
         else if (File.Exists(path))
