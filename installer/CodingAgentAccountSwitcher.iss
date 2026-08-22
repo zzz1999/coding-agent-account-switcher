@@ -2,7 +2,11 @@
 #define AppPublisher "Coding Agent Account Switcher contributors"
 #define AppExeName "CodingAgentAccountSwitcher.exe"
 #define PublishDirectory AddBackslash(SourcePath) + "..\artifacts\publish"
-#define AppVersion GetVersionNumbersString(PublishDirectory + "\" + AppExeName)
+#ifndef AppVersion
+#define FullAppVersion GetVersionNumbersString(PublishDirectory + "\" + AppExeName)
+; Keep direct local builds aligned with the three-part GitHub Release version.
+#define AppVersion Copy(FullAppVersion, 1, RPos(".", FullAppVersion) - 1)
+#endif
 
 [Setup]
 AppId={{E5D34605-0A13-418C-A504-85181E8EEF8A}
@@ -17,7 +21,7 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 OutputDir=..\artifacts
-OutputBaseFilename=coding-agent-account-switcher-setup-win-x64
+OutputBaseFilename=CAAS-v{#AppVersion}-Setup-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

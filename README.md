@@ -23,8 +23,8 @@ where they are.
 Get the current version from the
 [latest release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
 
-- **Installer:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **Portable app:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **Installer:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **Portable app:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **Checksums:** a matching SHA-256 file is provided for each executable
 
 The installer is per-user, does not require administrator privileges, and does
@@ -134,6 +134,39 @@ Actions. Only the newest Release keeps the installer and portable downloads.
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md).
 Never include real credentials or API keys in issues, logs, tests, or commits.
+
+## Third-party notices
+
+This app includes [Tomlyn](https://github.com/xoofx/Tomlyn), which is licensed
+under the BSD 2-Clause License.
+
+<details>
+<summary>Tomlyn BSD 2-Clause License notice</summary>
+
+Copyright (c) 2019-2026, Alexandre Mutel
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+</details>
 
 ## License
 

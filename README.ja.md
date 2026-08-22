@@ -23,8 +23,8 @@ MCP サーバー、スキル、プラグイン、プロジェクト設定、履�
 [最新リリース](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)
 から入手できます。
 
-- **インストーラー:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **ポータブル版:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **インストーラー:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **ポータブル版:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **チェックサム:** 各実行ファイルに対応する SHA-256 ファイルがあります
 
 インストールは現在のユーザーだけが対象で、管理者権限は不要です。
@@ -124,6 +124,12 @@ Release を公開します。インストーラーとポータブル版は最新
 
 貢献を歓迎します。[CONTRIBUTING.md](CONTRIBUTING.md)をお読みください。
 実際の資格情報や API キーを Issue、ログ、テスト、コミットに含めないでください。
+
+## サードパーティーに関する通知
+
+このアプリは BSD 2-Clause ライセンスの
+[Tomlyn](https://github.com/xoofx/Tomlyn) を使用しています。著作権および
+ライセンスの全文は[英語版 README](README.md#third-party-notices)をご覧ください。
 
 ## ライセンス
 

@@ -21,8 +21,8 @@ Codex وClaude Code وOpenCode.
 احصل على الإصدار الحالي من
 [أحدث إصدار](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
 
-- **المثبّت:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **التطبيق المحمول:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **المثبّت:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **التطبيق المحمول:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **ملفات التحقق:** يتوفر ملف SHA-256 مطابق لكل ملف تنفيذي
 
 يُثبّت التطبيق للمستخدم الحالي فقط، ولا يحتاج إلى صلاحيات المسؤول، ولا يفعّل
@@ -119,6 +119,12 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 
 المساهمات مرحب بها. اقرأ [CONTRIBUTING.md](CONTRIBUTING.md).
 لا تضع بيانات اعتماد أو مفاتيح API حقيقية في Issues أو السجلات أو الاختبارات أو commits.
+
+## إشعارات الجهات الخارجية
+
+يستخدم هذا التطبيق [Tomlyn](https://github.com/xoofx/Tomlyn) المرخّصة بموجب
+رخصة BSD ذات البندين. يتوفر إشعار حقوق النشر والترخيص الكامل في
+[ملف README الإنجليزي](README.md#third-party-notices).
 
 ## الترخيص
 

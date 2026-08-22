@@ -175,7 +175,7 @@ public sealed class ApplicationPreferencesTests
     public void StartupRegistrationClassificationRepairsOnlyStrictProductRelocations()
     {
         const string currentCommand =
-            "\"C:\\Tools\\coding-agent-account-switcher-portable-win-x64.exe\"";
+            "\"C:\\Tools\\CAAS-v1.0.13-Portable-x64.exe\"";
         const string previousCommand = "\"D:\\Apps\\CodingAgentAccountSwitcher.exe\"";
         var relocated = new StartupRegistrationValue(
             true,
@@ -186,6 +186,14 @@ public sealed class ApplicationPreferencesTests
             StartupRegistrationStatus.Relocated,
             StartupRegistrationService.ClassifyRegistration(relocated, currentCommand));
         Assert.False(StartupRegistrationService.IsRegistrationEnabled(relocated, currentCommand));
+        Assert.Equal(
+            StartupRegistrationStatus.Relocated,
+            StartupRegistrationService.ClassifyRegistration(
+                relocated with
+                {
+                    Command = "\"D:\\Apps\\CAAS-v1.0.12-Portable-x64.exe\""
+                },
+                currentCommand));
 
         string? inspectedRegisteredPath = null;
         Assert.True(StartupRegistrationService.ShouldMutateRegistration(
@@ -223,6 +231,37 @@ public sealed class ApplicationPreferencesTests
                 currentCommand));
     }
 
+    [Theory]
+    [InlineData("CodingAgentAccountSwitcher.exe", true)]
+    [InlineData("coding-agent-account-switcher-portable-win-x64.exe", true)]
+    [InlineData("CAAS-v1.0.13-Portable-x64.exe", true)]
+    [InlineData("caas-v2.4.0-portable-X64.EXE", true)]
+    [InlineData("CAAS-v1.0-Portable-x64.exe", false)]
+    [InlineData("CAAS-v1.0.13.0-Portable-x64.exe", false)]
+    [InlineData("CAAS-v01.0.13-Portable-x64.exe", false)]
+    [InlineData("CAAS-v0.9.1-Portable-x64.exe", false)]
+    [InlineData("CAAS-v1.0.13-Setup-x64.exe", false)]
+    [InlineData("CAAS-v1.0.13-Portable-arm64.exe", false)]
+    [InlineData("CAAS-v1.0.13-Portable-x64.exe.bak", false)]
+    [InlineData("CAAS-vnot-a-version-Portable-x64.exe", false)]
+    public void StartupRegistrationRecognizesOnlyCanonicalVersionedPortableNames(
+        string executableName,
+        bool expectedKnownProduct)
+    {
+        const string registeredCommand = "\"C:\\Previous\\CodingAgentAccountSwitcher.exe\"";
+        var registration = new StartupRegistrationValue(
+            true,
+            Microsoft.Win32.RegistryValueKind.String,
+            registeredCommand);
+        var currentCommand = $"\"D:\\Current\\{executableName}\"";
+
+        Assert.Equal(
+            expectedKnownProduct
+                ? StartupRegistrationStatus.Relocated
+                : StartupRegistrationStatus.Conflicting,
+            StartupRegistrationService.ClassifyRegistration(registration, currentCommand));
+    }
+
     [Fact]
     public void StartupRepairRequiresThePreviouslyRegisteredExecutableToBeMissing()
     {
@@ -234,7 +273,7 @@ public sealed class ApplicationPreferencesTests
         var currentExecutablePath = Path.Combine(
             temporary.Path,
             "current",
-            "coding-agent-account-switcher-portable-win-x64.exe");
+            "CAAS-v1.0.13-Portable-x64.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(previousExecutablePath)!);
         File.WriteAllBytes(previousExecutablePath, [0x4D, 0x5A]);
 

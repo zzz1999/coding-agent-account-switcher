@@ -23,8 +23,8 @@
 [최신 릴리스](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)
 에서 받을 수 있습니다.
 
-- **설치 프로그램:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **포터블 앱:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **설치 프로그램:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **포터블 앱:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **체크섬:** 각 실행 파일에 맞는 SHA-256 파일이 제공됩니다
 
 설치는 현재 사용자에게만 적용되며 관리자 권한이 필요하지 않습니다. 사용자가
@@ -122,6 +122,12 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 
 기여를 환영합니다. [CONTRIBUTING.md](CONTRIBUTING.md)를 읽어 주십시오.
 실제 자격 증명이나 API 키를 이슈, 로그, 테스트 또는 커밋에 포함하지 마십시오.
+
+## 서드 파티 고지
+
+이 앱은 BSD 2-Clause 라이선스의
+[Tomlyn](https://github.com/xoofx/Tomlyn)을 사용합니다. 전체 저작권 및
+라이선스 고지는 [영문 README](README.md#third-party-notices)를 참조하세요.
 
 ## 라이선스
 

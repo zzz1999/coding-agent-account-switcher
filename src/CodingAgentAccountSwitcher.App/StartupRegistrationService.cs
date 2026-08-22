@@ -345,7 +345,27 @@ internal readonly record struct StartupRegistrationValue(
         string.Equals(
             executableName,
             "coding-agent-account-switcher-portable-win-x64.exe",
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase) ||
+        IsVersionedPortableExecutableName(executableName);
+
+    private static bool IsVersionedPortableExecutableName(string executableName)
+    {
+        const string prefix = "CAAS-v";
+        const string suffix = "-Portable-x64.exe";
+        if (!executableName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+            !executableName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) ||
+            executableName.Length <= prefix.Length + suffix.Length)
+        {
+            return false;
+        }
+
+        var versionText = executableName[prefix.Length..^suffix.Length];
+        return Version.TryParse(versionText, out var version) &&
+               version.Major >= 1 &&
+               version.Build >= 0 &&
+               version.Revision < 0 &&
+               string.Equals(version.ToString(3), versionText, StringComparison.Ordinal);
+    }
 }
 
 internal enum StartupRegistrationStatus

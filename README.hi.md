@@ -23,8 +23,8 @@ MCP सर्वर, स्किल, प्लगइन, प्रोजेक�
 [नवीनतम रिलीज़](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)
 से प्राप्त करें:
 
-- **इंस्टॉलर:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **पोर्टेबल ऐप:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **इंस्टॉलर:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **पोर्टेबल ऐप:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **चेकसम:** हर executable के लिए संबंधित SHA-256 फ़ाइल दी जाती है
 
 इंस्टॉलेशन केवल वर्तमान उपयोगकर्ता के लिए है, एडमिन अधिकार नहीं माँगता और आपकी
@@ -123,6 +123,12 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 
 योगदान का स्वागत है। [CONTRIBUTING.md](CONTRIBUTING.md) पढ़ें।
 Issues, लॉग, टेस्ट या commits में असली क्रेडेंशियल या API कुंजियाँ कभी न डालें।
+
+## तृतीय-पक्ष सूचनाएँ
+
+यह ऐप BSD 2-Clause लाइसेंस के अंतर्गत उपलब्ध
+[Tomlyn](https://github.com/xoofx/Tomlyn) का उपयोग करता है। पूर्ण कॉपीराइट और
+लाइसेंस सूचना [अंग्रेज़ी README](README.md#third-party-notices) में उपलब्ध है।
 
 ## लाइसेंस
 

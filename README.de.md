@@ -23,8 +23,8 @@ bleiben an ihrem bisherigen Ort.
 Die aktuelle Version finden Sie in der
 [neuesten Release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest):
 
-- **Installationsprogramm:** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **Portable App:** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **Installationsprogramm:** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **Portable App:** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **Prüfsummen:** Für jede ausführbare Datei gibt es eine passende SHA-256-Datei
 
 Die Installation gilt nur für den aktuellen Benutzer, benötigt keine
@@ -128,6 +128,12 @@ versioniertes Release. Nur das neueste Release behält Installer und portable Ap
 Beiträge sind willkommen. Lesen Sie [CONTRIBUTING.md](CONTRIBUTING.md).
 Fügen Sie niemals echte Anmeldedaten oder API-Schlüssel in Issues, Protokolle,
 Tests oder Commits ein.
+
+## Hinweise zu Drittanbietern
+
+Diese App verwendet [Tomlyn](https://github.com/xoofx/Tomlyn) unter der
+BSD-2-Clause-Lizenz. Den vollständigen Urheberrechts- und Lizenzhinweis findest
+du in der [englischen README](README.md#third-party-notices).
 
 ## Lizenz
 

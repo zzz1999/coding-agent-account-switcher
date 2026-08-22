@@ -65,20 +65,22 @@ jobs:
           New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
           Copy-Item -LiteralPath .\LICENSE -Destination .\artifacts\publish\LICENSE -Force
           Copy-Item -LiteralPath .\THIRD-PARTY-NOTICES.md -Destination .\artifacts\publish\THIRD-PARTY-NOTICES.md -Force
+          Copy-Item -LiteralPath .\README.md -Destination .\artifacts\publish\README.md -Force
           $publishedExecutablePath = '.\artifacts\publish\CodingAgentAccountSwitcher.exe'
           if (-not (Test-Path -LiteralPath $publishedExecutablePath -PathType Leaf)) {
             throw 'The expected portable executable was not created.'
           }
 
-          $assetPath = '.\artifacts\coding-agent-account-switcher-portable-win-x64.exe'
+          $assetName = "CAAS-v$($env:APP_VERSION)-Portable-x64.exe"
+          $assetPath = Join-Path '.\artifacts' $assetName
           Copy-Item -LiteralPath $publishedExecutablePath -Destination $assetPath -Force
           if ((Get-Item -LiteralPath $assetPath).Length -le 0) {
             throw 'The portable executable is empty.'
           }
 
-          $checksumPath = '.\artifacts\coding-agent-account-switcher-portable-win-x64.exe.sha256'
+          $checksumPath = "$assetPath.sha256"
           $hash = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash *coding-agent-account-switcher-portable-win-x64.exe" |
+          "$hash *$assetName" |
             Set-Content -LiteralPath $checksumPath -Encoding ascii
 
       - name: Build per-user installer
@@ -92,25 +94,27 @@ jobs:
             throw "Inno Setup compiler was not found at '$compilerPath'."
           }
 
-          & $compilerPath .\installer\CodingAgentAccountSwitcher.iss
+          & $compilerPath "--define=AppVersion=$env:APP_VERSION" .\installer\CodingAgentAccountSwitcher.iss
           if ($LASTEXITCODE -ne 0) {
             throw 'Inno Setup failed to build the installer.'
           }
 
-          $installerPath = '.\artifacts\coding-agent-account-switcher-setup-win-x64.exe'
+          $installerAssetName = "CAAS-v$($env:APP_VERSION)-Setup-x64.exe"
+          $installerPath = Join-Path '.\artifacts' $installerAssetName
           if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
             throw 'The expected installer artifact was not created.'
           }
 
           $checksumPath = "$installerPath.sha256"
           $hash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash *coding-agent-account-switcher-setup-win-x64.exe" |
+          "$hash *$installerAssetName" |
             Set-Content -LiteralPath $checksumPath -Encoding ascii
 
       - name: Smoke test installer and uninstaller
         shell: pwsh
         run: |
-          $installerPath = (Resolve-Path '.\artifacts\coding-agent-account-switcher-setup-win-x64.exe').Path
+          $installerAssetName = "CAAS-v$($env:APP_VERSION)-Setup-x64.exe"
+          $installerPath = (Resolve-Path (Join-Path '.\artifacts' $installerAssetName)).Path
           $installPath = Join-Path $env:RUNNER_TEMP 'coding-agent-account-switcher-install-smoke'
           $installedExePath = Join-Path $installPath 'CodingAgentAccountSwitcher.exe'
           $uninstallerPath = Join-Path $installPath 'unins000.exe'
@@ -267,22 +271,20 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          INSTALLER_PATH: .\artifacts\coding-agent-account-switcher-setup-win-x64.exe
-          INSTALLER_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-setup-win-x64.exe.sha256
-          PORTABLE_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe
-          PORTABLE_CHECKSUM_PATH: .\artifacts\coding-agent-account-switcher-portable-win-x64.exe.sha256
-          THIRD_PARTY_NOTICES_PATH: .\THIRD-PARTY-NOTICES.md
         run: |
           $releaseTag = "v$env:APP_VERSION"
+          $installerAssetName = "CAAS-v$($env:APP_VERSION)-Setup-x64.exe"
+          $portableAssetName = "CAAS-v$($env:APP_VERSION)-Portable-x64.exe"
+          $installerPath = Join-Path '.\artifacts' $installerAssetName
+          $portablePath = Join-Path '.\artifacts' $portableAssetName
           $versionMarker = "<!-- coding-agent-account-switcher-version: $env:APP_VERSION -->"
-          $releaseNotes = "Automated Windows build for version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer, a portable executable, SHA-256 checksums, and third-party notices.`n`n$versionMarker"
+          $releaseNotes = "Automated Windows build for version $env:APP_VERSION from main commit $env:GITHUB_SHA. Includes a per-user installer, a portable executable, and SHA-256 checksums. Third-party notices are documented in the project README: https://github.com/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA/README.md#third-party-notices.`n`n$versionMarker"
 
           gh release create "$releaseTag" `
-            "$env:INSTALLER_PATH" `
-            "$env:INSTALLER_CHECKSUM_PATH" `
-            "$env:PORTABLE_PATH" `
-            "$env:PORTABLE_CHECKSUM_PATH" `
-            "$env:THIRD_PARTY_NOTICES_PATH" `
+            "$installerPath" `
+            "$installerPath.sha256" `
+            "$portablePath" `
+            "$portablePath.sha256" `
             --target "$env:GITHUB_SHA" `
             --title "$releaseTag" `
             --notes "$releaseNotes" `

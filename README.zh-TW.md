@@ -21,8 +21,8 @@
 請從 [latest Release](https://github.com/zzz1999/coding-agent-account-switcher/releases/latest)
 下載目前版本：
 
-- **安裝版：** <code>coding-agent-account-switcher-setup-win-x64.exe</code>
-- **可攜版：** <code>coding-agent-account-switcher-portable-win-x64.exe</code>
+- **安裝版：** <code>CAAS-vX.Y.Z-Setup-x64.exe</code>
+- **可攜版：** <code>CAAS-vX.Y.Z-Portable-x64.exe</code>
 - **校驗檔：** 每個執行檔都附有對應的 SHA-256 檔案
 
 安裝版只為目前使用者安裝，不需要系統管理員權限，也不會自動開啟「隨 Windows
@@ -116,6 +116,12 @@ Release。只有最新 Release 會保留安裝版與可攜版下載檔案。
 
 歡迎貢獻，請閱讀 [CONTRIBUTING.md](CONTRIBUTING.md)。請勿在 Issue、記錄、
 測試或提交中包含真實認證或 API 金鑰。
+
+## 第三方元件
+
+本軟體使用採用 BSD 2-Clause 授權條款的
+[Tomlyn](https://github.com/xoofx/Tomlyn)。完整著作權與授權聲明請參閱
+[英文 README](README.md#third-party-notices)。
 
 ## 授權條款
 
