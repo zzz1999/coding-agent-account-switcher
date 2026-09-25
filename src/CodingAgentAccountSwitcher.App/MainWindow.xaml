@@ -67,72 +67,6 @@
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
-        <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="54" />
-            <Setter Property="Height" Value="44" />
-            <Setter Property="Background" Value="{DynamicResource Brush.Toggle.TrackOff}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Toggle.TrackOffBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Grid Background="Transparent">
-                            <Border x:Name="Track"
-                                    Width="50"
-                                    Height="30"
-                                    VerticalAlignment="Center"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="15">
-                                <Border x:Name="Thumb"
-                                        Width="24"
-                                        Height="24"
-                                        Margin="3"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Center"
-                                        Background="{DynamicResource Brush.Toggle.Thumb}"
-                                        BorderBrush="{DynamicResource Brush.Toggle.ThumbBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="12" />
-                            </Border>
-                            <Border x:Name="ToggleFocusRing"
-                                    Width="50"
-                                    Height="30"
-                                    VerticalAlignment="Center"
-                                    BorderBrush="Transparent"
-                                    BorderThickness="2"
-                                    CornerRadius="15"
-                                    IsHitTestVisible="False" />
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Toggle.TrackOn}" />
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.Toggle.TrackOnBorder}" />
-                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.Text.Primary}" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="True" />
-                                    <Condition Property="IsKeyboardFocused" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing.OnToggle}" />
-                            </MultiTrigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Track" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <DataTemplate x:Key="AccountCardTemplate" DataType="{x:Type local:AccountCardViewModel}">
             <Border Style="{StaticResource Style.AccountCard}">
                 <Grid>
@@ -274,6 +208,7 @@
     </Window.Resources>
 
     <Grid>
+        <Grid x:Name="WindowSurface">
         <Border x:Name="MainShell"
                 Style="{StaticResource Style.WindowRoundedSurface}"
                 Background="{DynamicResource Brush.Surface.Glass}"
@@ -1106,7 +1041,8 @@
                     </Border>
                     <WrapPanel Margin="0,22,0,-8"
                                HorizontalAlignment="Right">
-                        <Button Margin="0,0,8,8"
+                        <Button x:Name="CancelChangedLoginButton"
+                                Margin="0,0,8,8"
                                 Style="{StaticResource Style.Button.Secondary}"
                                 Click="CancelChangedLoginDialog_Click"
                                 Content="{DynamicResource L.Common.Cancel}" />
@@ -1171,5 +1107,9 @@
                 </StackPanel>
             </Border>
         </Grid>
+        </Grid>
+        <!-- Keep the single outline above dialog scrims without intercepting input. -->
+        <local:PixelWindowOutline x:Name="WindowOutline"
+                                 Style="{StaticResource Style.WindowOutline}" />
     </Grid>
 </Window>

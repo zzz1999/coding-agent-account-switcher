@@ -6,12 +6,14 @@ namespace CodingAgentAccountSwitcher.App;
 
 /// <summary>
 /// Coordinates one interactive application instance per Windows user and session.
-/// A named mutex is kept open as the instance marker, while an auto-reset event
+/// A named mutex is held by the primary instance, while an auto-reset event
 /// lets later launches ask the first window to return to the foreground.
 /// </summary>
 internal sealed class SingleInstanceCoordinator : IDisposable
 {
     private readonly Mutex _instanceMarker;
+    private readonly Thread _ownershipThread;
+    private readonly ManualResetEventSlim _releaseOwnership = new();
     private readonly EventWaitHandle _activationSignal;
     private readonly RegisteredWaitHandle? _registeredWait;
     private int _disposed;
@@ -34,28 +36,54 @@ internal sealed class SingleInstanceCoordinator : IDisposable
             EventResetMode.AutoReset,
             activationSignalName);
 
-        _instanceMarker = new Mutex(
-            initiallyOwned: false,
-            markerName,
-            out var createdNew);
-        IsPrimary = createdNew;
+        _instanceMarker = new Mutex(initiallyOwned: false, markerName);
+        var election = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        // Mutex ownership is thread-affine. A dedicated thread both acquires
+        // and releases it, so disposal need not run on the construction thread.
+        // An open secondary handle must not keep a stopped primary "alive".
+        _ownershipThread = new Thread(() => HoldInstanceOwnership(election))
+        {
+            IsBackground = true,
+            Name = "CAAS instance ownership"
+        };
+        try
+        {
+            _ownershipThread.Start();
+            IsPrimary = election.Task.GetAwaiter().GetResult();
+        }
+        catch
+        {
+            _activationSignal.Dispose();
+            _instanceMarker.Dispose();
+            _releaseOwnership.Dispose();
+            throw;
+        }
         if (!IsPrimary)
         {
             return;
         }
 
-        _registeredWait = ThreadPool.RegisterWaitForSingleObject(
-            _activationSignal,
-            static (state, timedOut) =>
-            {
-                if (!timedOut && state is SingleInstanceCoordinator coordinator)
+        try
+        {
+            _registeredWait = ThreadPool.RegisterWaitForSingleObject(
+                _activationSignal,
+                static (state, timedOut) =>
                 {
-                    coordinator.OnActivationRequested();
-                }
-            },
-            this,
-            Timeout.Infinite,
-            executeOnlyOnce: false);
+                    if (!timedOut && state is SingleInstanceCoordinator coordinator)
+                    {
+                        coordinator.OnActivationRequested();
+                    }
+                },
+                this,
+                Timeout.Infinite,
+                executeOnlyOnce: false);
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     internal event EventHandler? ActivationRequested;
@@ -107,8 +135,46 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         }
 
         _registeredWait?.Unregister(null);
+        _releaseOwnership.Set();
+        _ownershipThread.Join();
         _activationSignal.Dispose();
         _instanceMarker.Dispose();
+        _releaseOwnership.Dispose();
+    }
+
+    private void HoldInstanceOwnership(TaskCompletionSource<bool> election)
+    {
+        var acquired = false;
+        try
+        {
+            try
+            {
+                acquired = _instanceMarker.WaitOne(0);
+            }
+            catch (AbandonedMutexException)
+            {
+                // A crashed primary releases ownership without closing every
+                // secondary handle. Windows transfers the abandoned lock here.
+                acquired = true;
+            }
+
+            election.SetResult(acquired);
+            if (acquired)
+            {
+                _releaseOwnership.Wait();
+            }
+        }
+        catch (Exception exception)
+        {
+            election.TrySetException(exception);
+        }
+        finally
+        {
+            if (acquired)
+            {
+                _instanceMarker.ReleaseMutex();
+            }
+        }
     }
 
     private void OnActivationRequested()

@@ -37,16 +37,25 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         UriKind.Absolute);
 
     private readonly HttpClient _httpClient;
+    private readonly TimeSpan _requestTimeout;
 
     public GitHubUpdateCheckService()
-        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(12) })
+        : this(new HttpClient { Timeout = Timeout.InfiniteTimeSpan })
     {
     }
 
-    internal GitHubUpdateCheckService(HttpClient httpClient)
+    internal GitHubUpdateCheckService(HttpClient httpClient, TimeSpan? requestTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
+        var effectiveTimeout = requestTimeout ?? TimeSpan.FromSeconds(12);
+        if (effectiveTimeout <= TimeSpan.Zero ||
+            effectiveTimeout.TotalMilliseconds > uint.MaxValue - 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        }
+
         _httpClient = httpClient;
+        _requestTimeout = effectiveTimeout;
     }
 
     public async Task<UpdateCheckResult> CheckAsync(
@@ -54,6 +63,29 @@ internal sealed class GitHubUpdateCheckService : IUpdateCheckService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(currentVersion);
+        // HttpClient.Timeout stops at the headers with ResponseHeadersRead.
+        // Keep one deadline alive until the bounded body has also been read.
+        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestCancellation.CancelAfter(_requestTimeout);
+        try
+        {
+            var result = await CheckCoreAsync(currentVersion, requestCancellation.Token);
+            requestCancellation.Token.ThrowIfCancellationRequested();
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Preserve the caller's cancellation token, rather than exposing
+            // the linked deadline token as if the caller had timed out.
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
+    }
+
+    private async Task<UpdateCheckResult> CheckCoreAsync(
+        Version currentVersion,
+        CancellationToken cancellationToken)
+    {
         var normalizedCurrentVersion = NormalizeVersion(currentVersion);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUri);

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using CodingAgentAccountSwitcher.App;
 
@@ -55,15 +56,59 @@ public sealed class ApplicationPreferencesTests
     {
         using var temporary = new TemporaryDirectory();
         var settingsPath = Path.Combine(temporary.Path, "settings.json");
-        File.WriteAllText(settingsPath, "{\"Language\":\"ZH-cn\",\"StartWithWindows\":true}");
+        File.WriteAllText(settingsPath, "{\"Language\":\"JA-jp\",\"StartWithWindows\":true}");
         var service = new ApplicationSettingsService(settingsPath);
 
-        Assert.Equal(new ApplicationSettings("zh-CN", true), service.Load());
+        Assert.Equal(new ApplicationSettings("ja-JP", true), service.Load());
 
         service.Save(new ApplicationSettings("PT-br", false));
 
         Assert.Equal(new ApplicationSettings("pt-BR", false), service.Load());
         Assert.Contains("\"Language\": \"pt-BR\"", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("zh-CN", false, false)]
+    [InlineData("zh-CN", false, true)]
+    [InlineData("zh-CN", true, false)]
+    [InlineData("zh-CN", true, true)]
+    [InlineData("zh-TW", false, false)]
+    [InlineData("zh-TW", false, true)]
+    [InlineData("zh-TW", true, false)]
+    [InlineData("zh-TW", true, true)]
+    [InlineData("ZH-cn", true, true)]
+    [InlineData("zH-tW", true, true)]
+    public void RetiredChineseLanguageFallsBackWithoutDiscardingOtherPreferences(
+        string retiredLanguage,
+        bool startWithWindows,
+        bool useDarkTheme)
+    {
+        using var temporary = new TemporaryDirectory();
+        var settingsPath = Path.Combine(temporary.Path, "settings.json");
+        var previousSettings = new ApplicationSettings(retiredLanguage, startWithWindows, useDarkTheme);
+        var originalContents = JsonSerializer.Serialize(previousSettings);
+        File.WriteAllText(settingsPath, originalContents);
+        var service = new ApplicationSettingsService(settingsPath);
+        var expected = previousSettings with { Language = "en-US" };
+
+        var loaded = service.Load();
+
+        Assert.Equal(expected, loaded);
+        Assert.Equal(originalContents, File.ReadAllText(settingsPath));
+        Assert.False(LocalizationService.IsSupported(retiredLanguage));
+        Assert.Null(LocalizationService.NormalizeLanguage(retiredLanguage));
+
+        // Retired codes may be migrated when reading old files, but must not be
+        // accepted as a newly selected language or silently written back again.
+        Assert.Throws<ArgumentException>(() => service.Save(previousSettings));
+        Assert.Equal(originalContents, File.ReadAllText(settingsPath));
+
+        service.Save(loaded);
+
+        Assert.Equal(expected, service.Load());
+        Assert.Equal(expected, JsonSerializer.Deserialize<ApplicationSettings>(File.ReadAllText(settingsPath)));
+        Assert.Contains("\"Language\": \"en-US\"", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+        Assert.Equal(new[] { settingsPath }, Directory.GetFiles(temporary.Path));
     }
 
     [Fact]
@@ -72,7 +117,7 @@ public sealed class ApplicationPreferencesTests
         var localization = new LocalizationService();
         var expectedLanguages = new[]
         {
-            "en-US", "zh-CN", "zh-TW", "es-ES", "fr-FR", "de-DE",
+            "en-US", "es-ES", "fr-FR", "de-DE",
             "ja-JP", "ko-KR", "pt-BR", "ru-RU", "ar-SA", "hi-IN",
         };
 

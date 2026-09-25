@@ -1,4 +1,6 @@
 using CodingAgentAccountSwitcher.App;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CodingAgentAccountSwitcher.Core.Tests;
 
@@ -95,6 +97,66 @@ public sealed class SingleInstanceCoordinatorTests
             }
             start.Dispose();
         }
+    }
+
+    [Fact]
+    public void StoppedPrimaryDoesNotBlockRelaunchWhileSecondaryIsStillOpen()
+    {
+        var instanceKey = $"CodingAgentAccountSwitcherTests.{Guid.NewGuid():N}";
+        using var primary = new SingleInstanceCoordinator(instanceKey);
+        using var secondary = new SingleInstanceCoordinator(instanceKey);
+        Assert.False(secondary.IsPrimary);
+
+        primary.Dispose();
+
+        using var replacement = new SingleInstanceCoordinator(instanceKey);
+        using var activationReceived = new ManualResetEventSlim();
+        replacement.ActivationRequested += (_, _) => activationReceived.Set();
+        Assert.True(replacement.IsPrimary);
+        Assert.True(secondary.NotifyPrimary());
+        Assert.True(activationReceived.Wait(TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public void AbandonedOwnershipCanBeRecoveredWhileOldMutexHandleRemainsOpen()
+    {
+        var instanceKey = $"CodingAgentAccountSwitcherTests.{Guid.NewGuid():N}";
+        var suffix = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(instanceKey)));
+        using var marker = new Mutex(false, $@"Local\CodingAgentAccountSwitcher.Instance.{suffix}");
+        var acquired = false;
+        // Exiting without ReleaseMutex simulates a primary process crashing.
+        var stoppedOwner = new Thread(() => acquired = marker.WaitOne(0));
+        stoppedOwner.Start();
+        Assert.True(stoppedOwner.Join(TimeSpan.FromSeconds(2)));
+        Assert.True(acquired);
+
+        using var replacement = new SingleInstanceCoordinator(instanceKey);
+        using var secondary = new SingleInstanceCoordinator(instanceKey);
+        Assert.True(replacement.IsPrimary);
+        Assert.False(secondary.IsPrimary);
+    }
+
+    [Fact]
+    public void PrimaryCanBeDisposedOnAnotherThread()
+    {
+        var instanceKey = $"CodingAgentAccountSwitcherTests.{Guid.NewGuid():N}";
+        using var primary = new SingleInstanceCoordinator(instanceKey);
+        var constructingThreadId = Environment.CurrentManagedThreadId;
+        var disposingThreadId = 0;
+        Exception? disposalError = null;
+
+        var disposer = new Thread(() =>
+        {
+            disposingThreadId = Environment.CurrentManagedThreadId;
+            disposalError = Record.Exception(primary.Dispose);
+        });
+        disposer.Start();
+        Assert.True(disposer.Join(TimeSpan.FromSeconds(2)));
+        Assert.NotEqual(constructingThreadId, disposingThreadId);
+        Assert.Null(disposalError);
+
+        using var replacement = new SingleInstanceCoordinator(instanceKey);
+        Assert.True(replacement.IsPrimary);
     }
 
     [Fact]

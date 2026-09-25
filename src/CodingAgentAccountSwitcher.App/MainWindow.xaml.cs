@@ -20,7 +20,8 @@ public partial class MainWindow : Window
     private const string ProfilesHiddenNoticeKey = "Status.ProfilesHidden";
     private const int DwmWindowCornerPreferenceAttribute = 33;
     private const int DwmWindowBorderColorAttribute = 34;
-    private const uint DwmColorNone = 0xFFFFFFFE;
+
+    private readonly bool _usesNativeFrame = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
 
     private readonly LocalizationService _localization;
     private readonly ApplicationSettingsService _settingsService;
@@ -115,32 +116,56 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         ApplyNativeWindowAppearance();
+        if (_usesNativeFrame)
+        {
+            SystemParameters.StaticPropertyChanged += OnWindowSystemSettingsChanged;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        SystemParameters.StaticPropertyChanged -= OnWindowSystemSettingsChanged;
+        base.OnClosed(e);
+    }
+
+    private void OnWindowSystemSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if ((string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(SystemParameters.HighContrast)) &&
+            !Dispatcher.HasShutdownStarted)
+        {
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (IsLoaded)
+                {
+                    ApplyNativeWindowAppearance();
+                }
+            }));
+        }
     }
 
     private void ConfigureNativeWindowCorners()
     {
         var chrome = WindowChrome.GetWindowChrome(this);
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-        {
-            // WindowChrome's custom region has visibly aliased edges. On
-            // Windows 11, let DWM perform the final GPU-composited clipping.
-            if (chrome is not null)
-            {
-                chrome.CornerRadius = default;
-            }
-
-            return;
-        }
-
-        // Windows 10 has no native DWM corner preference. A layered WPF window
-        // gives only the four outer corners per-pixel alpha, while the opaque
-        // MainShell keeps the rest of the interface rendered at native DPI.
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
         if (chrome is not null)
         {
+            // Native DWM corners on Windows 11, per-pixel WPF corners on 10:
+            // neither path should use WindowChrome's aliased clipping region.
             chrome.CornerRadius = default;
+            // Do not request the glass frame that enabled the previous shadow.
+            chrome.GlassFrameThickness = default;
+            chrome.ResizeBorderThickness = new Thickness(8);
         }
+
+        if (!_usesNativeFrame)
+        {
+            // Keep only the rounded outer corners transparent, with no gutter.
+            AllowsTransparency = true;
+            Background = Brushes.Transparent;
+        }
+
+        // DWM draws the Windows 11 outline along its own native corner shape.
+        // Windows 10 uses the one-device-pixel overlay instead, never both.
+        WindowOutline.Visibility = _usesNativeFrame ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ApplyNativeWindowAppearance()
@@ -163,7 +188,10 @@ public partial class MainWindow : Window
             ref cornerPreference,
             Marshal.SizeOf<DwmWindowCornerPreference>());
 
-        var borderColor = DwmColorNone;
+        var outlineColor = SystemParameters.HighContrast
+            ? SystemColors.WindowTextColor
+            : ((SolidColorBrush)FindResource("Brush.Window.Outline")).Color;
+        var borderColor = PixelWindowOutline.ToColorRef(outlineColor);
         _ = DwmSetWindowAttribute(
             handle,
             DwmWindowBorderColorAttribute,
@@ -1049,7 +1077,7 @@ public partial class MainWindow : Window
 
         RememberDialogFocusIfOpening(ChangedLoginDialogOverlay);
         ChangedLoginDialogOverlay.Visibility = Visibility.Visible;
-        Dispatcher.BeginInvoke(() => Keyboard.Focus(ConfirmChangedLoginButton));
+        Dispatcher.BeginInvoke(() => Keyboard.Focus(CancelChangedLoginButton));
     }
 
     private async void ConfirmChangedLoginSwitch_Click(object sender, RoutedEventArgs e)
@@ -1252,6 +1280,7 @@ public partial class MainWindow : Window
 
         ThemeMoonIcon.Visibility = _isDarkTheme ? Visibility.Collapsed : Visibility.Visible;
         ThemeSunIcon.Visibility = _isDarkTheme ? Visibility.Visible : Visibility.Collapsed;
+        ApplyNativeWindowAppearance();
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

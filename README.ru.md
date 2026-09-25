@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Значок Coding Agent Account Switcher">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 Простое приложение для Windows, которое переключает сохранённые учётные записи
 или настройки API-сервисов для Codex, Claude Code и OpenCode.
@@ -39,7 +39,7 @@
 - Переименовывайте профиль двойным щелчком или удаляйте локальный снимок.
 - Получайте ясное подтверждение активного профиля после переключения.
 - Блокируйте переключение, пока связанные приложения открыты.
-- Используйте один из 12 встроенных языков.
+- Используйте один из 10 встроенных языков.
 - Сохраняйте светлую/тёмную тему и язык между запусками.
 - При повторном запуске в том же сеансе Windows приложение восстанавливает и
   выводит вперёд существующее окно, а не создаёт ещё одно.
@@ -133,6 +133,9 @@ Actions. Установщик и портативное приложение о�
 Приложение использует [Tomlyn](https://github.com/xoofx/Tomlyn) по лицензии
 BSD 2-Clause. Полный текст уведомления об авторских правах и лицензии приведён
 в [английском README](README.md#third-party-notices).
+
+Установщик также включает переводы [Inno Setup](https://jrsoftware.org/),
+распространяемые по [лицензии Inno Setup](installer/Languages/LICENSE.txt).
 
 ## Лицензия
 

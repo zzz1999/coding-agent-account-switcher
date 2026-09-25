@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Ícone do Coding Agent Account Switcher">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 Um aplicativo simples para Windows que alterna entre contas ou configurações de
 sites de API salvas para Codex, Claude Code e OpenCode.
@@ -39,7 +39,7 @@ atuais não são assinados, portanto o Windows SmartScreen pode exibir um aviso.
 - Renomeie um perfil com dois cliques ou exclua um snapshot local.
 - Veja uma confirmação clara do perfil ativo após a troca.
 - Bloqueie a troca enquanto aplicativos relacionados estiverem abertos.
-- Use um dos 12 idiomas integrados.
+- Use um dos 10 idiomas integrados.
 - Mantenha o tema claro/escuro e o idioma entre execuções.
 - Na mesma sessão do Windows, abrir o aplicativo novamente restaura e traz para
   frente a janela existente em vez de criar outra.
@@ -131,6 +131,9 @@ Nunca inclua credenciais ou chaves de API reais em issues, logs, testes ou commi
 Este aplicativo usa [Tomlyn](https://github.com/xoofx/Tomlyn), licenciado sob a
 licença BSD de 2 cláusulas. O aviso completo de direitos autorais e licença está
 no [README em inglês](README.md#third-party-notices).
+
+O instalador também inclui traduções do [Inno Setup](https://jrsoftware.org/),
+sob a [licença do Inno Setup](installer/Languages/LICENSE.txt).
 
 ## Licença
 

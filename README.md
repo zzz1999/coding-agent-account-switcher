@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Coding Agent Account Switcher icon">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 A simple Windows app for switching between saved Codex, Claude Code, and
 OpenCode accounts or API-site setups.
@@ -40,7 +40,7 @@ unsigned, so Windows SmartScreen may show a warning.
 - Double-click a profile name to rename it, or delete a saved local snapshot.
 - See a clear confirmation showing which profile is active after a switch.
 - Block switching while related apps are still running.
-- Use English, Chinese, Spanish, French, German, Japanese, Korean, Portuguese,
+- Use English, Spanish, French, German, Japanese, Korean, Portuguese,
   Russian, Arabic, or Hindi.
 - Keep your light/dark appearance and language choice between launches.
 - In the same Windows sign-in session, opening the app again restores and brings
@@ -139,6 +139,11 @@ Never include real credentials or API keys in issues, logs, tests, or commits.
 
 This app includes [Tomlyn](https://github.com/xoofx/Tomlyn), which is licensed
 under the BSD 2-Clause License.
+
+The installer includes [Inno Setup](https://jrsoftware.org/) translations, used
+under the [Inno Setup License](installer/Languages/LICENSE.txt).
+See [translation credits](installer/Languages/SOURCES.md) and
+[full third-party notices](THIRD-PARTY-NOTICES.md).
 
 <details>
 <summary>Tomlyn BSD 2-Clause License notice</summary>

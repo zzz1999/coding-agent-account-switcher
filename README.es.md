@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Icono de Coding Agent Account Switcher">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 Una aplicación sencilla para Windows que permite cambiar entre cuentas o
 configuraciones de sitios API guardadas para Codex, Claude Code y OpenCode.
@@ -40,7 +40,7 @@ están firmadas, por lo que Windows SmartScreen puede mostrar una advertencia.
 - Cambie el nombre de un perfil con doble clic o elimine una instantánea local.
 - Vea una confirmación clara del perfil activo después del cambio.
 - Impida el cambio mientras las aplicaciones relacionadas estén abiertas.
-- Use cualquiera de los 12 idiomas integrados.
+- Use cualquiera de los 10 idiomas integrados.
 - Conserve el tema claro u oscuro y el idioma entre inicios.
 - En la misma sesión de Windows, abrir la aplicación de nuevo restaura y trae al
   frente la ventana existente en lugar de crear otra.
@@ -134,6 +134,9 @@ pruebas o commits.
 Esta aplicación usa [Tomlyn](https://github.com/xoofx/Tomlyn), distribuido bajo
 la licencia BSD de 2 cláusulas. Consulta el aviso completo de copyright y
 licencia en el [README en inglés](README.md#third-party-notices).
+
+El instalador también incluye traducciones de [Inno Setup](https://jrsoftware.org/),
+bajo la [licencia de Inno Setup](installer/Languages/LICENSE.txt).
 
 ## Licencia
 

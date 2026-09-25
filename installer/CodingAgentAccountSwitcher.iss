@@ -1,3 +1,5 @@
+; Use ISPP's actual version: ISCC.exe file metadata can report 0.0.0.0.
+#pragma message "Inno Setup compiler version: " + Str(Ver >> 24) + "." + Str((Ver >> 16) & 0xFF) + "." + Str((Ver >> 8) & 0xFF)
 #define AppName "Coding Agent Account Switcher"
 #define AppPublisher "Coding Agent Account Switcher contributors"
 #define AppExeName "CodingAgentAccountSwitcher.exe"
@@ -25,6 +27,11 @@ OutputBaseFilename=CAAS-v{#AppVersion}-Setup-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; Always confirm the language before entering an interactive wizard, including upgrades.
+; Inno Setup skips this dialog for /SILENT, /VERYSILENT, or an explicit /LANG.
+ShowLanguageDialog=yes
+UsePreviousLanguage=no
+LanguageDetectionMethod=uilanguage
 PrivilegesRequired=lowest
 MinVersion=10.0.14393
 ArchitecturesAllowed=x64compatible
@@ -35,6 +42,20 @@ SetupLogging=yes
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 VersionInfoVersion={#AppVersion}
+
+[Languages]
+; Match LocalizationService.SupportedLanguages; Inno names require '_' instead of '-'.
+; Vendored message files keep builds independent of runner translation versions/network access.
+Name: "en_US"; MessagesFile: "Languages\English.isl"
+Name: "es_ES"; MessagesFile: "Languages\Spanish.isl"
+Name: "fr_FR"; MessagesFile: "Languages\French.isl"
+Name: "de_DE"; MessagesFile: "Languages\German.isl"
+Name: "ja_JP"; MessagesFile: "Languages\Japanese.isl"
+Name: "ko_KR"; MessagesFile: "Languages\Korean.isl"
+Name: "pt_BR"; MessagesFile: "Languages\BrazilianPortuguese.isl"
+Name: "ru_RU"; MessagesFile: "Languages\Russian.isl"
+Name: "ar_SA"; MessagesFile: "Languages\Arabic.isl"
+Name: "hi_IN"; MessagesFile: "Languages\Hindi.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

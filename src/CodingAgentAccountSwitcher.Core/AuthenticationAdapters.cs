@@ -296,12 +296,28 @@ public sealed class ClaudeCodeAuthenticationAdapter : IAuthenticationAdapter
     ]);
 
     private readonly bool _manageApiConfiguration;
+    private readonly Func<string, byte[]?> _readAuthenticationFile;
 
     public ClaudeCodeAuthenticationAdapter(
         string? userProfileDirectory = null,
         string? claudeConfigDirectory = null,
         bool manageApiConfiguration = true)
+        : this(
+            userProfileDirectory,
+            claudeConfigDirectory,
+            manageApiConfiguration,
+            AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile)
     {
+    }
+
+    internal ClaudeCodeAuthenticationAdapter(
+        string? userProfileDirectory,
+        string? claudeConfigDirectory,
+        bool manageApiConfiguration,
+        Func<string, byte[]?> readAuthenticationFile)
+    {
+        ArgumentNullException.ThrowIfNull(readAuthenticationFile);
+        _readAuthenticationFile = readAuthenticationFile;
         var authenticationRoot = AuthenticationPathResolution.ResolveRoot(
             userProfileDirectory,
             claudeConfigDirectory,
@@ -365,34 +381,14 @@ public sealed class ClaudeCodeAuthenticationAdapter : IAuthenticationAdapter
             return AuthenticationSnapshotFiles.ReadRequiredAuthenticationFile(AuthenticationFilePath);
         }
 
-        byte[]? authentication = null;
-        byte[]? configuration = null;
-        try
-        {
-            authentication = AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile(AuthenticationFilePath);
-            configuration = ClaudeManagedConfiguration.Capture(SettingsFilePath);
-            if (authentication is null &&
-                !ClaudeManagedConfiguration.HasManagedValues(configuration) &&
-                !allowIncomplete)
-            {
-                throw new FileNotFoundException(
-                    "Neither Claude Code credentials nor managed API settings were found.",
-                    AuthenticationFilePath);
-            }
-
-            return AuthenticationSnapshotCodec.Encode(new ManagedAuthenticationSnapshot
-            {
-                Provider = Provider,
-                AuthenticationFileExists = authentication is not null,
-                AuthenticationFileContents = authentication,
-                ManagedConfiguration = configuration
-            });
-        }
-        finally
-        {
-            ZeroIfPresent(authentication);
-            ZeroIfPresent(configuration);
-        }
+        return ConsistentAuthenticationSnapshotReader.Read(
+            Provider,
+            DisplayName,
+            AuthenticationFilePath,
+            _readAuthenticationFile,
+            () => ClaudeManagedConfiguration.Capture(SettingsFilePath),
+            ClaudeManagedConfiguration.HasManagedValues,
+            allowIncomplete);
     }
 
     public void WriteSnapshot(IAtomicFileWriter atomicWriter, byte[] snapshotBytes, Guid transactionId)
@@ -510,6 +506,7 @@ public sealed class OpenCodeAuthenticationAdapter : IAuthenticationAdapter
     private readonly IReadOnlyList<OpenCodeConfigurationLayer> _configurationLayers;
     private readonly IReadOnlyList<string> _invalidRelativePathEnvironmentVariables;
     private readonly bool _validateKnownEnvironmentOverrides;
+    private readonly Func<string, byte[]?> _readAuthenticationFile;
 
     public OpenCodeAuthenticationAdapter(
         string? userProfileDirectory = null,
@@ -527,8 +524,11 @@ public sealed class OpenCodeAuthenticationAdapter : IAuthenticationAdapter
         string? userProfileDirectory,
         string? openCodeConfigurationPath,
         string? openCodeAuthenticationPath,
-        bool validateKnownEnvironmentOverrides)
+        bool validateKnownEnvironmentOverrides,
+        Func<string, byte[]?>? readAuthenticationFile = null)
     {
+        _readAuthenticationFile = readAuthenticationFile ??
+            AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile;
         var profileDirectory = ResolveUserProfile(userProfileDirectory);
         var allowPathEnvironmentOverrides = userProfileDirectory is null;
         var invalidRelativePathEnvironmentVariables = new List<string>();
@@ -640,41 +640,14 @@ public sealed class OpenCodeAuthenticationAdapter : IAuthenticationAdapter
     public byte[] ReadSnapshot(bool allowIncomplete = false)
     {
         EnsureNoKnownUnmanagedEnvironmentOverrides();
-        byte[]? authentication = null;
-        byte[]? configuration = null;
-        try
-        {
-            authentication = AuthenticationSnapshotFiles.ReadOptionalAuthenticationFile(AuthenticationFilePath);
-            configuration = OpenCodeManagedConfiguration.Capture(_configurationLayers);
-            if (authentication is null &&
-                !OpenCodeManagedConfiguration.HasManagedValues(configuration) &&
-                !allowIncomplete)
-            {
-                throw new FileNotFoundException(
-                    "Neither OpenCode credentials nor managed provider settings were found.",
-                    AuthenticationFilePath);
-            }
-
-            return AuthenticationSnapshotCodec.Encode(new ManagedAuthenticationSnapshot
-            {
-                Provider = Provider,
-                AuthenticationFileExists = authentication is not null,
-                AuthenticationFileContents = authentication,
-                ManagedConfiguration = configuration
-            });
-        }
-        finally
-        {
-            if (authentication is not null)
-            {
-                CryptographicOperations.ZeroMemory(authentication);
-            }
-
-            if (configuration is not null)
-            {
-                CryptographicOperations.ZeroMemory(configuration);
-            }
-        }
+        return ConsistentAuthenticationSnapshotReader.Read(
+            Provider,
+            DisplayName,
+            AuthenticationFilePath,
+            _readAuthenticationFile,
+            () => OpenCodeManagedConfiguration.Capture(_configurationLayers),
+            OpenCodeManagedConfiguration.HasManagedValues,
+            allowIncomplete);
     }
 
     public void WriteSnapshot(IAtomicFileWriter atomicWriter, byte[] snapshotBytes, Guid transactionId)

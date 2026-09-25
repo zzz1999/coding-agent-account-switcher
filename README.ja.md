@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Coding Agent Account Switcher アイコン">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 保存済みの Codex、Claude Code、OpenCode アカウントや API サイト設定を
 簡単に切り替えるための Windows アプリです。
@@ -39,7 +39,7 @@ MCP サーバー、スキル、プラグイン、プロジェクト設定、履�
 - プロファイル名をダブルクリックして変更し、ローカルスナップショットを削除。
 - 切り替え後に有効なプロファイル名を明確に確認。
 - 関連アプリが開いている間は切り替えを停止。
-- 12 種類の内蔵言語を利用可能。
+- 10 種類の内蔵言語を利用可能。
 - ライト／ダークテーマと言語を次回起動時も保持。
 - 同じ Windows ログインセッションで再度起動すると、新しいウィンドウを増やさず、
   既存のウィンドウを復元して前面に表示。
@@ -130,6 +130,9 @@ Release を公開します。インストーラーとポータブル版は最新
 このアプリは BSD 2-Clause ライセンスの
 [Tomlyn](https://github.com/xoofx/Tomlyn) を使用しています。著作権および
 ライセンスの全文は[英語版 README](README.md#third-party-notices)をご覧ください。
+
+インストーラーには [Inno Setup](https://jrsoftware.org/) の翻訳も含まれ、
+[Inno Setup ライセンス](installer/Languages/LICENSE.txt)が適用されます。
 
 ## ライセンス
 

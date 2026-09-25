@@ -18,6 +18,23 @@
     <sys:Double x:Key="Space.6">24</sys:Double>
     <sys:Double x:Key="Space.8">32</sys:Double>
 
+    <!-- The Windows 10 outline occupies no layout space and has no shadow. -->
+    <Style x:Key="Style.WindowOutline" TargetType="Border">
+        <Setter Property="CornerRadius" Value="22" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Window.Outline}" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Focusable" Value="False" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                         Value="Maximized">
+                <Setter Property="CornerRadius" Value="0" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Path=(SystemParameters.HighContrast)}" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="ScrollViewer">
         <Setter Property="local:AutoHideScrollBarBehavior.IsEnabled" Value="True" />
     </Style>
@@ -397,6 +414,80 @@
         </Setter>
     </Style>
 
+    <!-- All pill switches share the same geometry and motion. The thumb only
+         translates; its circle and the control's hit target never scale. -->
+    <Style x:Key="Style.SettingsToggle" TargetType="ToggleButton">
+        <Setter Property="Width" Value="54" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Toggle.TrackOff}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Toggle.TrackOffBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="local:SpringToggleBehavior.IsEnabled" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Grid x:Name="Track" Width="50" Height="30" VerticalAlignment="Center">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="15" />
+                            <!-- Fade between theme-aware tracks without animating
+                                 or replacing shared DynamicResource brushes. -->
+                            <Border x:Name="TrackOn"
+                                    Background="{DynamicResource Brush.Toggle.TrackOn}"
+                                    BorderBrush="{DynamicResource Brush.Toggle.TrackOnBorder}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="15"
+                                    Opacity="0" />
+                            <Border x:Name="Thumb"
+                                    Width="24"
+                                    Height="24"
+                                    Margin="4,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource Brush.Toggle.Thumb}"
+                                    BorderBrush="{DynamicResource Brush.Toggle.ThumbBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    SnapsToDevicePixels="False">
+                                <Border.RenderTransform>
+                                    <TranslateTransform />
+                                </Border.RenderTransform>
+                            </Border>
+                        </Grid>
+                        <Border x:Name="ToggleFocusRing"
+                                Width="50"
+                                Height="30"
+                                VerticalAlignment="Center"
+                                BorderBrush="Transparent"
+                                BorderThickness="2"
+                                CornerRadius="15"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.Text.Primary}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True" />
+                                <Condition Property="IsKeyboardFocused" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="ToggleFocusRing" Property="BorderBrush" Value="{DynamicResource Brush.FocusRing.OnToggle}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="Style.ComboBoxItem" TargetType="ComboBoxItem">
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Padding" Value="12,0" />
@@ -512,11 +603,15 @@
                                     BorderThickness="1"
                                     CornerRadius="12">
                                 <ScrollViewer CanContentScroll="True"
+                                              HorizontalContentAlignment="Stretch"
                                               HorizontalScrollBarVisibility="Disabled"
                                               PanningMode="VerticalFirst"
                                               Style="{StaticResource Style.ScrollViewer.OverlayIndicators}"
                                               VerticalScrollBarVisibility="Auto">
-                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    <!-- The overlay scroll template honors content
+                                         alignment; stretch keeps every row full-width. -->
+                                    <ItemsPresenter HorizontalAlignment="Stretch"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
                             </Border>
                         </Popup>

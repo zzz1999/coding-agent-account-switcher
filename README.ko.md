@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Coding Agent Account Switcher 아이콘">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 저장된 Codex, Claude Code, OpenCode 계정 또는 API 사이트 설정을 간편하게
 전환하는 Windows 앱입니다.
@@ -39,7 +39,7 @@
 - 프로필 이름을 두 번 클릭해 변경하거나 로컬 스냅샷 삭제.
 - 전환 후 현재 프로필 이름을 명확하게 확인.
 - 관련 앱이 열려 있는 동안 전환 차단.
-- 12가지 내장 언어 사용.
+- 10가지 내장 언어 사용.
 - 라이트/다크 테마와 언어를 다음 실행에도 유지.
 - 같은 Windows 로그인 세션에서 앱을 다시 실행하면 새 창을 만들지 않고 기존 창을
   복원해 앞으로 가져옵니다.
@@ -128,6 +128,9 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 이 앱은 BSD 2-Clause 라이선스의
 [Tomlyn](https://github.com/xoofx/Tomlyn)을 사용합니다. 전체 저작권 및
 라이선스 고지는 [영문 README](README.md#third-party-notices)를 참조하세요.
+
+설치 프로그램에는 [Inno Setup](https://jrsoftware.org/) 번역도 포함되며,
+[Inno Setup 라이선스](installer/Languages/LICENSE.txt)가 적용됩니다.
 
 ## 라이선스
 

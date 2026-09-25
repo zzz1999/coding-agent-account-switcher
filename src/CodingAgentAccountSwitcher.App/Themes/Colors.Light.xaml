@@ -16,6 +16,7 @@
     <SolidColorBrush x:Key="Brush.Segmented.Hover" Color="#FFF0F2F6" />
     <SolidColorBrush x:Key="Brush.Border.Subtle" Color="#FFD8DEE7" />
     <SolidColorBrush x:Key="Brush.Border.Strong" Color="#FFC3CBD7" />
+    <SolidColorBrush x:Key="Brush.Window.Outline" Color="#FFA3A3A3" />
     <SolidColorBrush x:Key="Brush.Divider" Color="#FFE2E6EC" />
     <SolidColorBrush x:Key="Brush.Text.Primary" Color="#FF171922" />
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="#FF5B6372" />

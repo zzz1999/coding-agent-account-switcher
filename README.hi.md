@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="Coding Agent Account Switcher आइकन">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 Codex, Claude Code और OpenCode के सहेजे गए खातों या API साइट सेटअप के बीच
 आसानी से बदलने के लिए एक सरल Windows ऐप।
@@ -39,7 +39,7 @@ MCP सर्वर, स्किल, प्लगइन, प्रोजेक�
 - डबल-क्लिक से प्रोफ़ाइल का नाम बदलें या स्थानीय स्नैपशॉट हटाएँ।
 - स्विच के बाद सक्रिय प्रोफ़ाइल नाम की साफ़ पुष्टि देखें।
 - संबंधित ऐप खुले रहने पर स्विच रोकें।
-- 12 अंतर्निहित भाषाओं में से किसी एक का उपयोग करें।
+- 10 अंतर्निहित भाषाओं में से किसी एक का उपयोग करें।
 - लाइट/डार्क थीम और भाषा अगली बार भी बनाए रखें।
 - उसी Windows लॉगिन सेशन में ऐप दोबारा खोलने पर नई विंडो बनाने के बजाय मौजूदा
   विंडो को रीस्टोर करके सामने लाया जाता है।
@@ -129,6 +129,9 @@ Issues, लॉग, टेस्ट या commits में असली क्�
 यह ऐप BSD 2-Clause लाइसेंस के अंतर्गत उपलब्ध
 [Tomlyn](https://github.com/xoofx/Tomlyn) का उपयोग करता है। पूर्ण कॉपीराइट और
 लाइसेंस सूचना [अंग्रेज़ी README](README.md#third-party-notices) में उपलब्ध है।
+
+इंस्टॉलर में [Inno Setup](https://jrsoftware.org/) के अनुवाद भी शामिल हैं,
+जो [Inno Setup लाइसेंस](installer/Languages/LICENSE.txt) के अंतर्गत हैं।
 
 ## लाइसेंस
 

@@ -136,6 +136,63 @@ public sealed class UpdateCheckServiceTests
     }
 
     [Fact]
+    public async Task CheckAsyncTimesOutWhenResponseBodyStallsAfterHeaders()
+    {
+        using var body = new StalledResponseStream();
+        using var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(body),
+        });
+        using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        var service = new GitHubUpdateCheckService(client, TimeSpan.FromMilliseconds(100));
+
+        var check = service.CheckAsync(new Version(1, 0, 41));
+        await body.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => check.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.True(exception.CancellationToken.IsCancellationRequested);
+        Assert.True(body.IsDisposed);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CheckAsyncPreservesCallerCancellationWhileReadingResponseBody()
+    {
+        using var body = new StalledResponseStream();
+        using var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(body),
+        });
+        using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        using var cancellation = new CancellationTokenSource();
+        var service = new GitHubUpdateCheckService(client, TimeSpan.FromSeconds(30));
+
+        var check = service.CheckAsync(new Version(1, 0, 41), cancellation.Token);
+        await body.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => check.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.True(body.IsDisposed);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(4294967295)]
+    public void ConstructorRejectsInvalidRequestTimeout(double timeoutMilliseconds)
+    {
+        using var client = new HttpClient();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GitHubUpdateCheckService(
+            client,
+            TimeSpan.FromMilliseconds(timeoutMilliseconds)));
+    }
+
+    [Fact]
     public void ParseReleaseVersionRejectsInvalidAndConflictingMarkers()
     {
         Assert.Throws<InvalidDataException>(() => GitHubUpdateCheckService.ParseReleaseVersion(
@@ -187,6 +244,8 @@ public sealed class UpdateCheckServiceTests
     private sealed class RecordingHttpMessageHandler(
         Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
     {
+        public int RequestCount { get; private set; }
+
         public HttpMethod? Method { get; private set; }
 
         public Uri? RequestUri { get; private set; }
@@ -204,6 +263,7 @@ public sealed class UpdateCheckServiceTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            RequestCount++;
             Method = request.Method;
             RequestUri = request.RequestUri;
             Accept = request.Headers.Accept.ToString();
@@ -213,6 +273,45 @@ public sealed class UpdateCheckServiceTests
                 : null;
             Authorization = request.Headers.Authorization?.ToString();
             return Task.FromResult(responseFactory(request));
+        }
+    }
+
+    private sealed class StalledResponseStream : Stream
+    {
+        public TaskCompletionSource ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool IsDisposed { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            ReadStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
         }
     }
 }

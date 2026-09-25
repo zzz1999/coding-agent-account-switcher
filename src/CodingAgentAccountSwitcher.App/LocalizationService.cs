@@ -14,8 +14,6 @@ public sealed class LocalizationService
     private static readonly IReadOnlyList<LanguageOption> Languages =
     [
         new("en-US", "English (United States)", FlowDirection.LeftToRight),
-        new("zh-CN", "简体中文", FlowDirection.LeftToRight),
-        new("zh-TW", "繁體中文", FlowDirection.LeftToRight),
         new("es-ES", "Español", FlowDirection.LeftToRight),
         new("fr-FR", "Français", FlowDirection.LeftToRight),
         new("de-DE", "Deutsch", FlowDirection.LeftToRight),
@@ -254,8 +252,6 @@ internal static partial class LocalizationCatalog
         return new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
         {
             ["en-US"] = english,
-            ["zh-CN"] = Merge("zh-CN", english, ChineseSimplified()),
-            ["zh-TW"] = Merge("zh-TW", english, ChineseTraditional()),
             ["es-ES"] = Merge("es-ES", english, Spanish()),
             ["fr-FR"] = Merge("fr-FR", english, French()),
             ["de-DE"] = Merge("de-DE", english, German()),

@@ -4,7 +4,7 @@
   <img src="src/CodingAgentAccountSwitcher.App/Assets/CodingAgentAccountSwitcher.png" width="144" alt="أيقونة Coding Agent Account Switcher">
 </p>
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
+[English](README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
 تطبيق Windows بسيط للتبديل بين حسابات أو إعدادات مواقع API المحفوظة في
 Codex وClaude Code وOpenCode.
@@ -37,7 +37,7 @@ Windows SmartScreen تحذيراً.
 - أعد تسمية ملف بالنقر المزدوج أو احذف لقطة محلية.
 - شاهد تأكيداً واضحاً لاسم الملف النشط بعد التبديل.
 - امنع التبديل ما دامت التطبيقات المرتبطة مفتوحة.
-- استخدم واحدة من 12 لغة مدمجة.
+- استخدم واحدة من 10 لغات مدمجة.
 - احتفظ بالمظهر الفاتح أو الداكن واللغة بين مرات التشغيل.
 - عند تشغيل التطبيق مرة أخرى في جلسة Windows نفسها، يستعيد النافذة الحالية
   ويعرضها في المقدمة بدلاً من إنشاء نافذة أخرى.
@@ -125,6 +125,9 @@ dotnet run --project .\src\CodingAgentAccountSwitcher.App\CodingAgentAccountSwit
 يستخدم هذا التطبيق [Tomlyn](https://github.com/xoofx/Tomlyn) المرخّصة بموجب
 رخصة BSD ذات البندين. يتوفر إشعار حقوق النشر والترخيص الكامل في
 [ملف README الإنجليزي](README.md#third-party-notices).
+
+يتضمن برنامج التثبيت أيضًا ترجمات [Inno Setup](https://jrsoftware.org/)،
+بموجب [ترخيص Inno Setup](installer/Languages/LICENSE.txt).
 
 ## الترخيص
 

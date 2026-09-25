@@ -62,8 +62,9 @@ packaging or update discovery.
   interaction target in UI changes.
 - Keep the executable Per-Monitor V2 DPI aware. The Windows 10 layered-window
   fallback must keep its main shell opaque and use transparency only for the
-  antialiased outer corners. Do not introduce whole-window scale transforms or
-  bitmap-cached interface layers at fractional scaling.
+  antialiased outer corners. Keep the outer outline thin at fractional scaling;
+  do not reintroduce shadow margins, whole-window effects, scale transforms, or
+  bitmap-cached interface layers.
 - Do not include Apple fonts, SF Symbols, Apple artwork, or provider logos.
 - Run `dotnet test` and `git diff --check` before submitting.
 - When release packaging changes, verify that the installer EXE, portable EXE,

@@ -94,7 +94,10 @@ jobs:
             throw "Inno Setup compiler was not found at '$compilerPath'."
           }
 
-          & $compilerPath "--define=AppVersion=$env:APP_VERSION" .\installer\CodingAgentAccountSwitcher.iss
+          Write-Host "Inno Setup compiler: $compilerPath"
+          # --define/--version require Inno Setup 7.1+; the script logs the engine version.
+          # Keep /D compatible with the Inno Setup 6 compiler on Windows runners.
+          & $compilerPath "/DAppVersion=$env:APP_VERSION" .\installer\CodingAgentAccountSwitcher.iss
           if ($LASTEXITCODE -ne 0) {
             throw 'Inno Setup failed to build the installer.'
           }

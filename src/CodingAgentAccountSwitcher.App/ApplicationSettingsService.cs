@@ -47,6 +47,14 @@ public sealed class ApplicationSettingsService
             }
 
             var settings = JsonSerializer.Deserialize<ApplicationSettings>(File.ReadAllText(_settingsPath));
+            // Retired UI languages must not reset the user's theme or startup
+            // preference. Loading only migrates in memory; saving stays explicit.
+            if (settings is not null &&
+                (string.Equals(settings.Language, "zh-CN", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(settings.Language, "zh-TW", StringComparison.OrdinalIgnoreCase)))
+            {
+                settings = settings with { Language = ApplicationSettings.Default.Language };
+            }
             var normalizedLanguage = LocalizationService.NormalizeLanguage(settings?.Language);
             return settings is not null && normalizedLanguage is not null
                 ? settings with { Language = normalizedLanguage }
